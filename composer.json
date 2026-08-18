@@ -14,12 +14,13 @@
         "spatie/laravel-medialibrary": "^11.0"
     },
     "require-dev": {
+        "intervention/image": "^4.0",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.24",
+        "mockery/mockery": "^1.6",
         "orchestra/testbench": "^10.0|^11.0",
         "pestphp/pest": "^4.0",
-        "laravel/pint": "^1.24",
-        "phpstan/phpstan": "^2.1",
-        "larastan/larastan": "^3.0",
-        "mockery/mockery": "^1.6"
+        "phpstan/phpstan": "^2.1"
     },
     "suggest": {
         "intervention/image": "Enables upload-time image compression (Laravel 13.20+)"
