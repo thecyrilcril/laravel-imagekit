@@ -18,6 +18,7 @@ use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
+use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
 
@@ -112,7 +113,7 @@ class ImageKitManager
     {
         $queued = 0;
 
-        Media::query()
+        MediaModel::query()
             ->where('model_type', $modelClass)
             ->where('collection_name', $collection)
             ->whereNull('imagekit_pending_deletion_at')

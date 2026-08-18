@@ -17,6 +17,7 @@ use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
+use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
 
@@ -57,7 +58,11 @@ final class PushFileToImageKit implements ShouldQueue
 
     public function handle(): void
     {
-        $media = Media::query()->find($this->mediaId);
+        // Resolved through the app's configured media_model. Querying the
+        // vendor class directly resolves the key wrong on an application
+        // model with a different key type, so the row is never found and the
+        // upload fails with a misleading "file not found".
+        $media = MediaModel::find($this->mediaId);
 
         if (! $media instanceof Media) {
             // The row was deleted between dispatch and execution. Nothing to do.
