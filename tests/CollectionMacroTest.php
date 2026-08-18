@@ -54,8 +54,8 @@ it('forgets registered collections on flush', function (): void {
 
     expect(RegistersImageKitCollections::isRegistered('avatar'))->toBeFalse();
 
-    // Collections are re-registered lazily by MediaObserver::created(), so
-    // restore state for any test that runs after this one in the process.
+    // Collections are re-registered lazily by MediaAddedListener, so restore
+    // state for any test that runs after this one in the process.
     RegistersImageKitCollections::register();
     $this->model->registerMediaCollections();
 });

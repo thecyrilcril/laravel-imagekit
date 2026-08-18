@@ -19,11 +19,11 @@ beforeEach(function (): void {
     Storage::fake('public');
     config()->set('media-library.disk_name', 'public');
 
-    // The `avatar` collection is registered for ImageKit (see TestModel),
-    // so MediaObserver::created() auto-dispatches a real PushFileToImageKit
-    // for every attachImage() call below. These tests exercise the job in
-    // isolation via manual ->handle() calls, so the observer's own copy
-    // must be faked out rather than left to run for real.
+    // The `avatar` collection is registered for ImageKit (see TestModel), so
+    // MediaAddedListener auto-dispatches a real PushFileToImageKit for every
+    // attachImage() call below. These tests exercise the job in isolation via
+    // manual ->handle() calls, so the listener's own copy must be faked out
+    // rather than left to run for real.
     Queue::fake();
 
     $this->model = TestModel::query()->create(['name' => 'subject']);
