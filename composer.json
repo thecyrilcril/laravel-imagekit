@@ -1,0 +1,52 @@
+{
+    "name": "thecyrilcril/laravel-imagekit",
+    "description": "ImageKit uploads for Laravel, with optional first-party image compression and spatie/laravel-medialibrary interop.",
+    "keywords": ["laravel", "imagekit", "cdn", "images", "media-library", "uploads"],
+    "license": "MIT",
+    "authors": [
+        { "name": "Cyril Cril", "email": "cyrilcril@gmail.com" }
+    ],
+    "require": {
+        "php": "^8.4",
+        "illuminate/contracts": "^12.0|^13.0",
+        "illuminate/support": "^12.0|^13.0",
+        "imagekit/imagekit": "^4.0.2",
+        "spatie/laravel-medialibrary": "^11.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0",
+        "laravel/pint": "^1.24",
+        "phpstan/phpstan": "^2.1",
+        "larastan/larastan": "^3.0",
+        "mockery/mockery": "^1.6"
+    },
+    "suggest": {
+        "intervention/image": "Enables upload-time image compression (Laravel 13.20+)"
+    },
+    "autoload": {
+        "psr-4": { "Thecyrilcril\\ImageKit\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Thecyrilcril\\ImageKit\\Tests\\": "tests/" }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": { "pestphp/pest-plugin": true }
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["Thecyrilcril\\ImageKit\\ImageKitServiceProvider"],
+            "aliases": { "ImageKit": "Thecyrilcril\\ImageKit\\Facades\\ImageKit" }
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "test:coverage": "@php -d xdebug.mode=coverage vendor/bin/pest --coverage --min=90",
+        "lint": "vendor/bin/pint",
+        "analyse": "vendor/bin/phpstan analyse",
+        "ci": ["@lint --test", "@analyse", "@test:coverage"]
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
