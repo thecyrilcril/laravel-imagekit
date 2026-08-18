@@ -12,9 +12,24 @@ use Thecyrilcril\ImageKit\Exceptions\CompressionFailed;
  * where intervention/image and a GD or Imagick driver are present — the same
  * capability the service provider checks before binding this compressor.
  *
+ * Composer guarantees intervention/image (require-dev), but GD and Imagick are
+ * PHP extensions it cannot install. Without the guard below, a CI image built
+ * without either would report an environment gap as a code regression.
+ *
  * The source image is drawn with GD rather than UploadedFile::fake(), whose
  * temporary file is collected before the bytes can be read back.
  */
+beforeEach(function (): void {
+    if (! extension_loaded('gd') && ! extension_loaded('imagick')) {
+        $this->markTestSkipped('Image compression requires the gd or imagick extension.');
+    }
+
+    // imageBytes() draws its fixture with GD, so an imagick-only build cannot
+    // produce the source image even though the compressor itself would work.
+    if (! extension_loaded('gd')) {
+        $this->markTestSkipped('These fixtures are drawn with gd.');
+    }
+});
 function imageBytes(int $width = 1200, int $height = 800): string
 {
     $canvas = imagecreatetruecolor($width, $height);
