@@ -4,12 +4,26 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit\Tests;
 
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Spatie\MediaLibrary\MediaLibraryServiceProvider;
 use Thecyrilcril\ImageKit\ImageKitServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Schema::dropIfExists('test_models');
+
+        Schema::create('test_models', static function (Blueprint $table): void {
+            $table->increments('id');
+            $table->string('name')->nullable();
+        });
+    }
+
     /**
      * @return array<int, class-string>
      */
