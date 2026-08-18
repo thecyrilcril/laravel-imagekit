@@ -13,7 +13,10 @@ use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Compression\NullImageCompressor;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
+use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
+use Thecyrilcril\ImageKit\Support\ProfileRepository;
+use Thecyrilcril\ImageKit\Support\UrlFactory;
 
 final class ImageKitServiceProvider extends ServiceProvider
 {
@@ -38,6 +41,17 @@ final class ImageKitServiceProvider extends ServiceProvider
 
         $this->app->singleton(UploadsFiles::class, ImageKitUploader::class);
         $this->app->singleton(DeletesRemoteFiles::class, ImageKitFileRemover::class);
+
+        $this->app->singleton(ProfileRepository::class, function (): ProfileRepository {
+            /** @var array<string, array<string, mixed>> $profiles */
+            $profiles = config('imagekit.profiles', []);
+            /** @var array<string, array<string, mixed>> $presets */
+            $presets = config('imagekit.presets', []);
+
+            return new ProfileRepository($profiles, $presets);
+        });
+
+        $this->app->singleton(GeneratesFileUrls::class, UrlFactory::class);
     }
 
     public function boot(): void
