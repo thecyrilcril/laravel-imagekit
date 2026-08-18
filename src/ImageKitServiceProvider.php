@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Image;
 use Illuminate\Support\ServiceProvider;
 use ImageKit\ImageKit as Sdk;
 use Intervention\Image\ImageManager;
 use Override;
+use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Compression\NullImageCompressor;
@@ -17,6 +19,7 @@ use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
+use Thecyrilcril\ImageKit\Listeners\MediaAddedListener;
 use Thecyrilcril\ImageKit\Observers\MediaObserver;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Thecyrilcril\ImageKit\Support\UrlFactory;
@@ -75,6 +78,11 @@ final class ImageKitServiceProvider extends ServiceProvider
         $mediaModel = config('media-library.media_model', Media::class);
 
         $mediaModel::observe(MediaObserver::class);
+
+        // Not Media::created(): media-library inserts the row before it
+        // copies the file to disk, so uploads trigger off the event that
+        // fires once the bytes actually exist — see MediaAddedListener.
+        Event::listen(MediaHasBeenAddedEvent::class, MediaAddedListener::class);
     }
 
     /**
