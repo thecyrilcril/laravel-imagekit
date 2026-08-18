@@ -94,7 +94,12 @@ it('exits quietly when the media row has already been deleted', function (): voi
     $this->app->instance(UploadsFiles::class, $uploader);
 
     (new PushFileToImageKit($id, 'avatar'))->handle();
-})->throwsNoExceptions();
+
+    // The job returned without touching the uploader. Asserting the row really
+    // is gone keeps this behavioural, rather than leaning solely on Mockery's
+    // ->never() expectation, which PHPUnit alone counts as a risky test.
+    expect(Media::query()->find($id))->toBeNull();
+});
 
 it('is routed onto the configured queue', function (): void {
     config()->set('imagekit.queue.name', 'custom-queue');
