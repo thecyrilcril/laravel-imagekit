@@ -22,7 +22,7 @@ final class TestModel extends Model implements HasMedia
     #[Override]
     public function registerMediaCollections(): void
     {
-        $this->addMediaCollection('avatar')->singleFile();
+        $this->addMediaCollection('avatar')->singleFile()->toImageKit('avatar');
         $this->addMediaCollection('plain');
     }
 }

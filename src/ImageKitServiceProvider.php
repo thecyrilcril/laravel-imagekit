@@ -9,12 +9,15 @@ use Illuminate\Support\ServiceProvider;
 use ImageKit\ImageKit as Sdk;
 use Intervention\Image\ImageManager;
 use Override;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Compression\NullImageCompressor;
+use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
+use Thecyrilcril\ImageKit\Observers\MediaObserver;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Thecyrilcril\ImageKit\Support\UrlFactory;
 
@@ -63,6 +66,13 @@ final class ImageKitServiceProvider extends ServiceProvider
                 __DIR__.'/../config/imagekit.php' => config_path('imagekit.php'),
             ], 'imagekit-config');
         }
+
+        RegistersImageKitCollections::register();
+
+        /** @var class-string<Media> $mediaModel */
+        $mediaModel = config('media-library.media_model', Media::class);
+
+        $mediaModel::observe(MediaObserver::class);
     }
 
     /**

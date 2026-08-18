@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
@@ -17,6 +18,13 @@ use Thecyrilcril\ImageKit\Tests\Fixtures\TestModel;
 beforeEach(function (): void {
     Storage::fake('public');
     config()->set('media-library.disk_name', 'public');
+
+    // The `avatar` collection is registered for ImageKit (see TestModel),
+    // so MediaObserver::created() auto-dispatches a real PushFileToImageKit
+    // for every attachImage() call below. These tests exercise the job in
+    // isolation via manual ->handle() calls, so the observer's own copy
+    // must be faked out rather than left to run for real.
+    Queue::fake();
 
     $this->model = TestModel::query()->create(['name' => 'subject']);
 });
