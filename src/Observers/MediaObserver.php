@@ -6,8 +6,10 @@ namespace Thecyrilcril\ImageKit\Observers;
 
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
+use Thecyrilcril\ImageKit\ImageKitManager;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Jobs\RemoveFileFromImageKit;
+use Thecyrilcril\ImageKit\Support\ProfileRepository;
 
 final readonly class MediaObserver
 {
@@ -21,7 +23,14 @@ final readonly class MediaObserver
 
         $profile = RegistersImageKitCollections::profileFor($media->collection_name);
 
-        // Task 11 adds the await:true branch here, once ImageKitManager exists.
+        // await:true uploads before the response is built, so an API caller
+        // receives the final CDN URL instead of a temporary local one.
+        if (app(ProfileRepository::class)->profile($profile)->await) {
+            app(ImageKitManager::class)->uploadNow($media, $profile);
+
+            return;
+        }
+
         PushFileToImageKit::dispatch($media->id, $profile);
     }
 

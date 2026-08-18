@@ -55,6 +55,8 @@ final class ImageKitServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(GeneratesFileUrls::class, UrlFactory::class);
+
+        $this->app->singleton(ImageKitManager::class);
     }
 
     public function boot(): void
