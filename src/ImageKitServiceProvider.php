@@ -6,11 +6,14 @@ namespace Thecyrilcril\ImageKit;
 
 use Illuminate\Support\Facades\Image;
 use Illuminate\Support\ServiceProvider;
+use ImageKit\ImageKit as Sdk;
 use Intervention\Image\ImageManager;
 use Override;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Compression\NullImageCompressor;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
+use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
+use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 
 final class ImageKitServiceProvider extends ServiceProvider
 {
@@ -24,6 +27,17 @@ final class ImageKitServiceProvider extends ServiceProvider
                 ? new LaravelImageCompressor
                 : new NullImageCompressor;
         });
+
+        $this->app->singleton(Sdk::class, function (): Sdk {
+            return new Sdk(
+                (string) config('imagekit.public_key'),
+                (string) config('imagekit.private_key'),
+                (string) config('imagekit.url_endpoint'),
+            );
+        });
+
+        $this->app->singleton(UploadsFiles::class, ImageKitUploader::class);
+        $this->app->singleton(DeletesRemoteFiles::class, ImageKitFileRemover::class);
     }
 
     public function boot(): void
