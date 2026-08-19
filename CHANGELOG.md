@@ -2,7 +2,7 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
-## Unreleased
+## v0.2.0
 
 - Lowered the PHP requirement to `^8.3`. Nothing in the package needed 8.4 — the constraint was simply stricter than Laravel's own, which meant a current Laravel 13 application running on PHP 8.3 could not install this at all. Verified against PHP 8.3.29 on both Laravel 12 and 13, and CI now covers 8.3 alongside 8.4 and 8.5.
 
