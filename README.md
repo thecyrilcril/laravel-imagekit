@@ -227,6 +227,28 @@ The remote delete is dispatched **after** the database transaction commits, so a
 
 One limitation worth knowing: only files this package uploaded are tracked. A file that reached ImageKit some other way (uploaded directly through ImageKit's own dashboard or API, outside media-library) has no `imagekit.file_id` custom property on any `Media` row, so nothing here knows to clean it up.
 
+### Finding orphans
+
+Automatic deletion only reaches rows the package can see. Files that predate adopting this package, rows removed by a raw SQL delete or a restored database backup, and anything uploaded outside media-library all leave a remote file with no local record. Nothing else will ever find those:
+
+```bash
+php artisan imagekit:reconcile
+```
+
+It lists, and does not delete. To act on the list:
+
+```bash
+php artisan imagekit:reconcile --delete
+```
+
+Options: `--folder=avatars` limits the scan to one ImageKit folder, and `--chunk=100` sets how many files are fetched per request.
+
+> **Read the listing before you pass `--delete`.**
+>
+> The command decides what counts as an orphan by comparing ImageKit against *this application's* media table. Point a staging app at a production ImageKit account and every production file looks orphaned. The same is true when one ImageKit account is shared by several applications: each sees the others' files as orphans, because it holds no rows referencing them. Scope with `--folder` when an account is shared.
+>
+> As a guard, the command refuses `--delete` outright when no media row references ImageKit at all, since an empty local side is indistinguishable from being pointed at the wrong account.
+
 ## Testing
 
 Swap in the fake with `ImageKit::fake()`, then assert on it like any other Laravel fake:
