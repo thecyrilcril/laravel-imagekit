@@ -2,6 +2,10 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## Unreleased
+
+- Lowered the PHP requirement to `^8.3`. Nothing in the package needed 8.4 — the constraint was simply stricter than Laravel's own, which meant a current Laravel 13 application running on PHP 8.3 could not install this at all. Verified against PHP 8.3.29 on both Laravel 12 and 13, and CI now covers 8.3 alongside 8.4 and 8.5.
+
 ## v0.1.1
 
 - Static analysis now type-checks the compression path on Laravel 12 as well as 13. `Illuminate\Image` only exists from Laravel 13.20, so analysing against Laravel 12 reported the facade as an unknown class. That was suppressed with an `ignoreErrors` rule, which also hid any genuine mistake in the same file; a scanned stub declaring the surface the compressor uses replaces it, so a mistyped method there is now reported on both versions.
