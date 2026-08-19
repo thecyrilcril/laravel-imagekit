@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Image;
+use Intervention\Image\ImageManager;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Data\CompressionProfile;
@@ -9,17 +11,27 @@ use Thecyrilcril\ImageKit\Exceptions\CompressionFailed;
 
 /**
  * These tests execute the real Illuminate\Image pipeline, so they only run
- * where intervention/image and a GD or Imagick driver are present — the same
- * capability the service provider checks before binding this compressor.
- *
- * Composer guarantees intervention/image (require-dev), but GD and Imagick are
- * PHP extensions it cannot install. Without the guard below, a CI image built
- * without either would report an environment gap as a code regression.
+ * where compression is genuinely available — the same three conditions the
+ * service provider checks before binding this compressor rather than the null
+ * one. Where any is missing these skip, because an absent capability is an
+ * environment gap and reporting it as a code regression would be a lie.
  *
  * The source image is drawn with GD rather than UploadedFile::fake(), whose
  * temporary file is collected before the bytes can be read back.
  */
 beforeEach(function (): void {
+    // Compression is optional by design: the package supports Laravel 12,
+    // where Illuminate\Image does not exist at all.
+    if (! class_exists(Image::class)) {
+        $this->markTestSkipped('Image compression requires Laravel 13.20+.');
+    }
+
+    // intervention/image is a suggested dependency, not a required one, so a
+    // consumer — or a CI leg proving the fallback — may not have it installed.
+    if (! class_exists(ImageManager::class)) {
+        $this->markTestSkipped('Image compression requires intervention/image.');
+    }
+
     if (! extension_loaded('gd') && ! extension_loaded('imagick')) {
         $this->markTestSkipped('Image compression requires the gd or imagick extension.');
     }

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+        laravel: ['12.*', '13.*']
+
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # gd is load-bearing, not incidental: without an image driver the
+      # compression tests skip themselves rather than fail, so CI would go
+      # green while the entire Laravel 13.20+ compression path went unrun.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd
+          coverage: xdebug
+
+      - name: Install dependencies
+        run: |
+          composer require "illuminate/support:${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction
+
+      - name: Run CI suite (Pint, PHPStan, Pest with coverage)
+        run: composer ci
+
+  # Compression is optional by design: below Laravel 13.20, or without
+  # intervention/image, the package binds a null compressor and uploads
+  # originals. This leg proves that fallback still passes with the driver
+  # absent, which the matrix above cannot show because gd is installed there.
+  without-image-driver:
+    runs-on: ubuntu-latest
+
+    name: No image driver / PHP 8.4 / Laravel 13.*
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install dependencies without intervention/image
+        run: |
+          composer require "illuminate/support:13.*" --no-interaction --no-update
+          composer remove intervention/image --dev --no-interaction --no-update
+          composer update --prefer-dist --no-interaction
+
+      - name: Run the suite with compression unavailable
+        run: vendor/bin/pest
