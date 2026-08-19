@@ -6,14 +6,12 @@ parameters:
     paths:
         - src
     tmpDir: build/phpstan
-    ignoreErrors:
-        # Illuminate\Support\Facades\Image ships with Laravel 13.20+. The
-        # package supports Laravel 12 too, where the facade does not exist and
-        # the service provider binds NullImageCompressor instead — this class
-        # is never constructed there. Analysing against Laravel 12 therefore
-        # cannot resolve the facade, and the reference is correct precisely
-        # because the capability check guarantees it is unreachable.
-        -
-            message: '#Call to static method .* on an unknown class Illuminate\\Support\\Facades\\Image\.#'
-            path: src/Compression/LaravelImageCompressor.php
-            reportUnmatched: false
+
+    # Illuminate\Image shipped in Laravel 13.20, and this package also supports
+    # Laravel 12 where it does not exist. Rather than ignore the resulting
+    # "unknown class" errors — which would silence real mistakes in the same
+    # file — the stub declares the surface the compressor uses, so those calls
+    # stay type-checked on both Laravel versions. PHPStan prefers the real
+    # classes when they are installed.
+    scanFiles:
+        - stubs/illuminate-image.stub

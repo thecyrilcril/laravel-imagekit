@@ -1,0 +1,70 @@
+<?php
+
+/**
+ * Analysis-only declarations for Laravel's first-party image component.
+ *
+ * `Illuminate\Image` shipped in Laravel 13.20. This package also supports
+ * Laravel 12, where the component does not exist at all — the service
+ * provider's capability check binds NullImageCompressor there, so
+ * LaravelImageCompressor is never constructed. PHPStan cannot see that a
+ * runtime check makes the class unreachable, so analysing against Laravel 12
+ * reported the facade as an unknown class.
+ *
+ * Stubbing rather than ignoring keeps the calls genuinely type-checked on
+ * BOTH Laravel versions: a mistyped method or a wrong argument type is still
+ * an error here, which an ignoreErrors rule for the same file would have
+ * silenced along with the real problem.
+ *
+ * This file is never autoloaded or executed. It declares only the surface
+ * LaravelImageCompressor::compress() actually uses; the signatures are copied
+ * from laravel/framework and must be updated together with it.
+ *
+ * Registered under `scanFiles`, not `stubFiles`: stubFiles replaces the
+ * signatures of classes PHPStan can already find, so it does nothing when the
+ * class is absent entirely, which is the case being solved here. Verified
+ * against Laravel 12.67 — with scanFiles a mistyped method on this surface is
+ * still reported, which an ignoreErrors rule for the file would have hidden.
+ *
+ * @see \Illuminate\Support\Facades\Image
+ * @see \Illuminate\Image\Image
+ */
+
+namespace Illuminate\Image;
+
+class Image
+{
+    /**
+     * Rotate the image according to its EXIF orientation data.
+     */
+    public function orient(): static {}
+
+    /**
+     * Proportionally scale down to fit the given dimensions. Never enlarges.
+     */
+    public function scale(?int $width = null, ?int $height = null): static {}
+
+    /**
+     * Encode as the given format on output.
+     */
+    public function toFormat(string $format): static {}
+
+    /**
+     * Set the output quality, clamped by the framework between 1 and 100.
+     */
+    public function quality(int $quality): static {}
+
+    /**
+     * Process the pipeline and return the encoded bytes.
+     */
+    public function toBytes(): string {}
+}
+
+namespace Illuminate\Support\Facades;
+
+class Image
+{
+    /**
+     * Create an image instance from raw bytes.
+     */
+    public static function fromBytes(string $contents): \Illuminate\Image\Image {}
+}
