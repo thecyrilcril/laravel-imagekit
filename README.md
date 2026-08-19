@@ -42,18 +42,39 @@ This builder falls back to media-library's normal URL for any media that has not
 
 ## Quick start (web)
 
-Register the collection you want pushed to ImageKit with `->toImageKit()`:
+### Prepare the model
+
+Files hang off an Eloquent model through media-library, so the model must implement `HasMedia` and use the `InteractsWithMedia` trait. That part is media-library's requirement, not this package's — if the model already stores media, it is done and you can skip to the next step.
+
+Mark the collection you want pushed to ImageKit with `->toImageKit()`:
 
 ```php
-use Spatie\MediaLibrary\MediaCollections\MediaCollection;
+<?php
 
-public function registerMediaCollections(): void
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+
+class User extends Model implements HasMedia
 {
-    $this->addMediaCollection('avatar')
-        ->singleFile()
-        ->toImageKit('avatar'); // the 'avatar' upload profile, see Configuration below
+    use InteractsWithMedia;
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('avatar')
+            ->singleFile()
+            ->toImageKit('avatar'); // the 'avatar' upload profile, see Configuration below
+    }
 }
 ```
+
+That is the whole integration. `->toImageKit()` records which upload profile the collection uses; everything after this — uploading, compressing, storing the CDN path, serving CDN URLs, deleting the remote file — follows from ordinary media-library usage.
+
+`->toImageKit()` with no argument uses the `default` profile. A collection without it is ignored by this package entirely and behaves exactly as media-library always did, so you can adopt this one collection at a time.
+
+### Upload and render
 
 Upload it the normal media-library way:
 
@@ -70,6 +91,8 @@ $user->getUrl('avatar'); // or getUrl() with no conversion, for the 'default' pr
 By default (`await: false`) the upload is queued. The **local** URL is served until the queued job finishes and stores the CDN path — usually a few seconds later. The next time the page renders, `getUrl()` returns the CDN URL automatically. There is nothing else to write: the same call serves whichever URL is currently correct.
 
 ## Quick start (API)
+
+The model is prepared exactly as above — `implements HasMedia`, `use InteractsWithMedia`, and `->toImageKit()` on the collection. Only the profile and the controller differ.
 
 An API response is a single shot — there is no later render to pick up a CDN URL that lands after the response is sent. Set `await: true` on the profile so the upload happens synchronously and the response can carry the final URL:
 
