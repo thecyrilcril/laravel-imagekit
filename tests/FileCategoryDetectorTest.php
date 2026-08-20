@@ -24,6 +24,10 @@ it('detects documents', function (string $mime): void {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/csv',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
+    'text/plain',
 ]);
 
 it('returns Unknown for unrecognised and missing mime types', function (?string $mime): void {
