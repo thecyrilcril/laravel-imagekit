@@ -315,7 +315,7 @@ Available assertions:
 | `assertDeleted(string $fileId)` | This ImageKit file ID was deleted |
 | `assertNothingUploaded()` | No uploads happened at all during the test |
 
-When your own code needs the client injected rather than called through the facade, type-hint the `Thecyrilcril\ImageKit\Contracts\ImageKitClient` contract. The service provider binds it as a singleton, and `ImageKit::fake()` swaps that same binding, so the fake reaches injected consumers too. Do not type-hint `ImageKitManager`: it is `final` and no longer bound on its own.
+When your own code needs the client injected rather than called through the facade, type-hint the `Thecyrilcril\ImageKit\Contracts\ImageKitClient` contract. The service provider binds it as a singleton, and `ImageKit::fake()` swaps that same binding, so the fake reaches injected consumers too. Do not type-hint `ImageKitManager`: it is `final`, it is no longer the bound singleton, and an auto-resolved instance is not swapped by `ImageKit::fake()`.
 
 To test how your own code handles an ImageKit outage, force `uploadNow()` to return `null` the way it would on a real failure:
 

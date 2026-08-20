@@ -13,9 +13,9 @@ final class FolderResolver
 {
     public static function resolve(string $collection): string
     {
-        /** @var string $root */
-        $root = config('imagekit.folder', 'uploads');
-        $root = trim($root, '/');
+        /** @var scalar|null $configured */
+        $configured = config('imagekit.folder', 'uploads');
+        $root = trim((string) $configured, '/');
 
         if ($collection === '') {
             return $root;

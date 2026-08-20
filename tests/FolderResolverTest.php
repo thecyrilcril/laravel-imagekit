@@ -28,3 +28,9 @@ it('returns the bare collection when the root folder is empty', function (): voi
 
     expect(FolderResolver::resolve('avatars'))->toBe('avatars');
 });
+
+it('treats a null root folder like an empty one', function (): void {
+    config()->set('imagekit.folder', null);
+
+    expect(FolderResolver::resolve('avatars'))->toBe('avatars');
+});

@@ -106,6 +106,14 @@ it('throws InvalidProfile for a max_edge below 1 instead of clamping', function 
     avatarProfile(['max_edge' => $maxEdge]);
 })->with([0, -5, '2000'])->throws(InvalidProfile::class, 'max_edge');
 
+it('rejects a float quality rather than truncating it', function (): void {
+    avatarProfile(['quality' => 90.5]);
+})->throws(InvalidProfile::class, 'got 90.5');
+
+it('describes a non-scalar value by its type in the message', function (): void {
+    avatarProfile(['max_edge' => ['bad']]);
+})->throws(InvalidProfile::class, 'got array');
+
 // Covers AE3.
 it('throws InvalidProfile for a non-string format instead of coercing to null', function (): void {
     avatarProfile(['format' => 123]);

@@ -14,6 +14,8 @@ use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
+use Thecyrilcril\ImageKit\Exceptions\InvalidProfile;
+use Thecyrilcril\ImageKit\Exceptions\UnknownProfile;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
 use Thecyrilcril\ImageKit\Support\MediaContents;
@@ -70,6 +72,12 @@ final class PushFileToImageKit implements ShouldQueue
 
         try {
             $this->push($media);
+        } catch (InvalidProfile|UnknownProfile $exception) {
+            // A configuration error is deterministic: retrying it tries x
+            // backoff times only delays the failed_jobs entry.
+            FileUploadFailed::dispatch($media, $exception);
+
+            $this->fail($exception);
         } catch (Throwable $exception) {
             FileUploadFailed::dispatch($media, $exception);
 

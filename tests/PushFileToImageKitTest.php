@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Queue\Job;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
@@ -12,8 +13,10 @@ use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
+use Thecyrilcril\ImageKit\Exceptions\InvalidProfile;
 use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
+use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Thecyrilcril\ImageKit\Tests\Fixtures\TestModel;
 
 beforeEach(function (): void {
@@ -170,6 +173,31 @@ it('fails with a RuntimeException when the file is missing on disk', function ()
     } catch (RuntimeException $exception) {
         expect($exception->getMessage())->toContain('Unable to read media file');
     }
+
+    Event::assertDispatched(FileUploadFailed::class);
+});
+
+it('fails immediately instead of retrying when the profile is misconfigured', function (): void {
+    Event::fake([FileUploadFailed::class]);
+
+    $media = attachImage($this->model);
+
+    config()->set('imagekit.profiles.avatar.quality', 900);
+    $this->app->forgetInstance(ProfileRepository::class);
+
+    $uploader = Mockery::mock(UploadsFiles::class);
+    $uploader->shouldNotReceive('upload');
+    $this->app->instance(UploadsFiles::class, $uploader);
+
+    $queueJob = Mockery::mock(Job::class);
+    $queueJob->shouldReceive('fail')->once()->with(Mockery::type(InvalidProfile::class));
+
+    $job = new PushFileToImageKit($media->id, 'avatar');
+    $job->setJob($queueJob);
+
+    // No exception escapes: the job marks itself failed rather than
+    // handing a deterministic config error back to the retry loop.
+    $job->handle();
 
     Event::assertDispatched(FileUploadFailed::class);
 });
