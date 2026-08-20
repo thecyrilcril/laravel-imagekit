@@ -27,18 +27,15 @@ final readonly class LaravelImageCompressor implements CompressesImages
         }
 
         try {
-            $maxEdge = max(1, $profile->maxEdge);
-            $quality = max(1, min(100, $profile->quality));
-
             $image = Image::fromBytes($contents)
                 ->orient()
-                ->scale($maxEdge, $maxEdge);
+                ->scale($profile->maxEdge, $profile->maxEdge);
 
             $image = $profile->format === null
                 ? $image
                 : $image->toFormat($profile->format);
 
-            return $image->quality($quality)->toBytes();
+            return $image->quality($profile->quality)->toBytes();
         } catch (Throwable $exception) {
             throw CompressionFailed::forFile($fileName, $exception);
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Thecyrilcril\ImageKit\Support;
 
 use Thecyrilcril\ImageKit\Data\CompressionProfile;
+use Thecyrilcril\ImageKit\Exceptions\InvalidProfile;
 use Thecyrilcril\ImageKit\Exceptions\UnknownProfile;
 
 final readonly class ProfileRepository
@@ -18,6 +19,10 @@ final readonly class ProfileRepository
         private array $presets,
     ) {}
 
+    /**
+     * @throws UnknownProfile
+     * @throws InvalidProfile
+     */
     public function profile(?string $name): CompressionProfile
     {
         $key = $name ?? 'default';
@@ -26,7 +31,7 @@ final readonly class ProfileRepository
             throw UnknownProfile::profile($key, array_keys($this->profiles));
         }
 
-        return CompressionProfile::fromArray($this->profiles[$key]);
+        return CompressionProfile::fromArray($this->profiles[$key], $key);
     }
 
     /**

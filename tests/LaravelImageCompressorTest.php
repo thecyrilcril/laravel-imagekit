@@ -144,19 +144,14 @@ it('converts to the requested format', function (string $format, string $expecte
     ['png', 'image/png'],
 ]);
 
-it('clamps an out-of-range quality instead of passing it to the driver', function (): void {
-    $result = (new LaravelImageCompressor)->compress(imageBytes(), profile(quality: 5000), 'source.jpg');
+it('passes a validated quality to the driver untouched', function (): void {
+    $baseline = (new LaravelImageCompressor)->compress(imageBytes(), profile(quality: 50), 'source.jpg');
+    $result = (new LaravelImageCompressor)->compress(imageBytes(), profile(quality: 100), 'source.jpg');
 
-    expect(getimagesizefromstring($result))->not->toBeFalse();
-});
-
-it('clamps a zero long-edge cap instead of passing it to the driver', function (): void {
-    $result = (new LaravelImageCompressor)->compress(imageBytes(), profile(maxEdge: 0), 'source.jpg');
-
-    $size = getimagesizefromstring($result);
-
-    expect($size)->not->toBeFalse()
-        ->and($size[0])->toBe(1);
+    // Quality is the only difference, so a larger payload proves 100 reached
+    // the driver rather than being clamped or altered on the way.
+    expect(getimagesizefromstring($result))->not->toBeFalse()
+        ->and(mb_strlen($result, '8bit'))->toBeGreaterThan(mb_strlen($baseline, '8bit'));
 });
 
 it('wraps a decoding failure in CompressionFailed and chains the cause', function (): void {
