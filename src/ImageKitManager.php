@@ -20,6 +20,7 @@ use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
+use Thecyrilcril\ImageKit\Support\FolderResolver;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
@@ -80,7 +81,7 @@ final class ImageKitManager implements ImageKitClient
 
         $result = app(UploadsFiles::class)->upload($contents, new UploadOptions(
             fileName: $media->file_name,
-            folder: $media->collection_name,
+            folder: FolderResolver::resolve($media->collection_name),
         ));
 
         $media->setCustomProperty('imagekit.file_id', $result->fileId);

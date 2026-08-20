@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
+use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
@@ -57,6 +58,28 @@ it('uploads before returning when await is true, so the cdn path is stored immed
     expect($media->fresh()->getCustomProperty('imagekit.file_path'))->toBe('/avatar/a.jpg');
 
     Queue::assertNotPushed(PushFileToImageKit::class);
+});
+
+// Covers AE4.
+it('uploads synchronously under the root folder joined with the collection', function (): void {
+    Queue::fake();
+
+    config()->set('imagekit.folder', 'kitwire');
+    config()->set('imagekit.profiles.avatar', ['compress' => false, 'await' => true]);
+
+    $uploader = Mockery::mock(UploadsFiles::class);
+    $uploader->shouldReceive('upload')
+        ->once()
+        ->withArgs(fn (string $contents, UploadOptions $options): bool => $options->folder === 'kitwire/avatar')
+        ->andReturn(new UploadedFileResult(
+            fileId: 'sync-1', path: '/kitwire/avatar/a.jpg', url: 'u', name: 'a.jpg', size: 10,
+        ));
+    $this->app->instance(UploadsFiles::class, $uploader);
+
+    $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
+        ->toMediaCollection('avatar');
+
+    expect($media->fresh()->getCustomProperty('imagekit.file_path'))->toBe('/kitwire/avatar/a.jpg');
 });
 
 it('keeps the file and queues a retry when an awaited upload fails', function (): void {

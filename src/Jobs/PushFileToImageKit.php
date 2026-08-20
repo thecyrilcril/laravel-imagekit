@@ -16,6 +16,7 @@ use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
+use Thecyrilcril\ImageKit\Support\FolderResolver;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
@@ -93,12 +94,9 @@ final class PushFileToImageKit implements ShouldQueue
             $contents = app(CompressesImages::class)->compress($contents, $profile, $media->file_name);
         }
 
-        /** @var string $folder */
-        $folder = config('imagekit.folder', 'uploads');
-
         $result = app(UploadsFiles::class)->upload($contents, new UploadOptions(
             fileName: $media->file_name,
-            folder: $media->collection_name !== '' ? $media->collection_name : $folder,
+            folder: FolderResolver::resolve($media->collection_name),
             tags: [$media->collection_name],
         ));
 

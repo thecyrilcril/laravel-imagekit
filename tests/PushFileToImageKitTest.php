@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
+use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
@@ -55,6 +56,27 @@ it('uploads and writes back the two custom properties', function (): void {
 
     expect($media->getCustomProperty('imagekit.file_id'))->toBe('f-1')
         ->and($media->getCustomProperty('imagekit.file_path'))->toBe('/avatar/photo.jpg');
+});
+
+// Covers AE4.
+it('uploads under the root folder joined with the collection', function (): void {
+    config()->set('imagekit.folder', 'kitwire');
+
+    $media = attachImage($this->model);
+
+    $uploader = Mockery::mock(UploadsFiles::class);
+    $uploader->shouldReceive('upload')
+        ->once()
+        ->withArgs(fn (string $contents, UploadOptions $options): bool => $options->folder === 'kitwire/avatar'
+            && $options->tags === ['avatar'])
+        ->andReturn(new UploadedFileResult(
+            fileId: 'f-1', path: '/kitwire/avatar/photo.jpg', url: 'u', name: 'photo.jpg', size: 1,
+        ));
+    $this->app->instance(UploadsFiles::class, $uploader);
+
+    (new PushFileToImageKit($media->id, 'avatar'))->handle();
+
+    expect($media->fresh()->getCustomProperty('imagekit.file_id'))->toBe('f-1');
 });
 
 it('fires FileUploaded on success', function (): void {
