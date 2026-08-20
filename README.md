@@ -184,6 +184,16 @@ The push to ImageKit is triggered by **media being created**, not by any particu
 
 ## Configuration
 
+### Root folder
+
+Every upload lands under one root folder, set by `IMAGEKIT_FOLDER` (`imagekit.folder`, default `uploads`). The final ImageKit path is `{folder}/{collection}/{file}`, so with `IMAGEKIT_FOLDER=kitwire` a file in the `avatars` collection is stored at `kitwire/avatars/photo.jpg`. Leading and trailing slashes on the value are ignored: `/kitwire/` and `kitwire` behave the same.
+
+Give each application that shares an ImageKit account its own root. That keeps their collections apart and gives `imagekit:reconcile --folder=<root>` a safe boundary (see [Finding orphans](#finding-orphans)). ImageKit creates folders on first upload, so there is nothing to set up on the ImageKit side.
+
+> If you never set `IMAGEKIT_FOLDER`, new uploads go to `/uploads/{collection}/...`. Before v0.3.0 they went to `/{collection}/...`. Files already on ImageKit stay where they are and keep working; only new uploads use the root folder.
+
+### Profiles and presets
+
 `config/imagekit.php` has two separate sections that are easy to conflate but govern different things:
 
 - **`profiles`** control what gets **stored** — compression applied before the file is uploaded to ImageKit.
@@ -207,9 +217,11 @@ Profile keys:
 |---|---|
 | `compress` | Whether to compress before upload at all. `false` uploads the original bytes untouched. |
 | `max_edge` | Longest side, in pixels, the image is scaled down to. Never scales up — an image already smaller than this is left alone. |
-| `quality` | 1–100, passed to the encoder. Ignored for lossless formats such as PNG. |
+| `quality` | Integer 1–100, passed to the encoder. Ignored for lossless formats such as PNG. |
 | `format` | Force a specific output format (`'jpg'`, `'png'`, `'webp'`, …), or `null` to keep the source format. See [Footguns](#footguns) before setting this. |
 | `await` | `false` (default) queues the upload — suits web pages. `true` uploads synchronously — suits API responses. |
+
+A profile is validated the first time it is used. A `quality` outside 1–100, a `max_edge` below 1, a non-string `format`, or a numeric string where an integer is expected (for example `'90'` from `env()`) throws `Thecyrilcril\ImageKit\Exceptions\InvalidProfile`, naming the profile and the field. Nothing is clamped or coerced silently. A profile that is never used never throws.
 
 Preset keys are passed straight through to ImageKit's [transformation parameters](https://imagekit.io/docs/transformations) (`width`, `height`, `focus`, `quality`, `format`, and any other transformation ImageKit supports).
 
@@ -264,11 +276,17 @@ It lists, and does not delete. To act on the list:
 php artisan imagekit:reconcile --delete
 ```
 
-Options: `--folder=avatars` limits the scan to one ImageKit folder, and `--chunk=100` sets how many files are fetched per request.
+Options: `--folder=kitwire` limits the scan to one ImageKit folder, and `--chunk=100` sets how many files are fetched per request.
+
+On a shared ImageKit account, always scope `--delete` to this application's root folder — the value of `IMAGEKIT_FOLDER`:
+
+```bash
+php artisan imagekit:reconcile --delete --folder=kitwire
+```
 
 > **Read the listing before you pass `--delete`.**
 >
-> The command decides what counts as an orphan by comparing ImageKit against *this application's* media table. Point a staging app at a production ImageKit account and every production file looks orphaned. The same is true when one ImageKit account is shared by several applications: each sees the others' files as orphans, because it holds no rows referencing them. Scope with `--folder` when an account is shared.
+> The command decides what counts as an orphan by comparing ImageKit against *this application's* media table. Point a staging app at a production ImageKit account and every production file looks orphaned. The same is true when one ImageKit account is shared by several applications: each sees the others' files as orphans, because it holds no rows referencing them. Scope with `--folder=<root>` (your `IMAGEKIT_FOLDER`) when an account is shared.
 >
 > As a guard, the command refuses `--delete` outright when no media row references ImageKit at all, since an empty local side is indistinguishable from being pointed at the wrong account.
 
@@ -297,6 +315,8 @@ Available assertions:
 | `assertDeleted(string $fileId)` | This ImageKit file ID was deleted |
 | `assertNothingUploaded()` | No uploads happened at all during the test |
 
+When your own code needs the client injected rather than called through the facade, type-hint the `Thecyrilcril\ImageKit\Contracts\ImageKitClient` contract. The service provider binds it as a singleton, and `ImageKit::fake()` swaps that same binding, so the fake reaches injected consumers too. Do not type-hint `ImageKitManager`: it is `final` and no longer bound on its own.
+
 To test how your own code handles an ImageKit outage, force `uploadNow()` to return `null` the way it would on a real failure:
 
 ```php
@@ -312,6 +332,8 @@ expect($result)->toBeNull();
 If your application is API-only, it may have no writable `public/` directory and no `storage:link` — there is nowhere for a "local" URL to be served from while an upload is queued. In that setup, prefer `await: true` on the relevant profiles: the response always carries a real ImageKit CDN URL, and the package never needs to fall back to a local disk URL that would not resolve to anything.
 
 ## Footguns
+
+**`imagekit:reconcile --delete` on a shared account without `--folder`** deletes every other application's files, because none of them have rows in this app's media table. Always pass `--folder=<root>`, where the root is this app's `IMAGEKIT_FOLDER`.
 
 Two `format` choices look reasonable and are not:
 
