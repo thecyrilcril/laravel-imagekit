@@ -86,3 +86,9 @@ it('deletes remotely and fires FileRemoved when the job runs', function (): void
 
     Event::assertDispatched(FileRemoved::class);
 });
+
+it('routes the remove job onto the configured connection when one is set', function (): void {
+    config()->set('imagekit.queue.connection', 'redis-uploads');
+
+    expect((new RemoveFileFromImageKit('remote-1'))->connection)->toBe('redis-uploads');
+});

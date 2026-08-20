@@ -8,7 +8,6 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
-use RuntimeException;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
@@ -17,6 +16,7 @@ use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MediaContents;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
@@ -82,11 +82,7 @@ final class PushFileToImageKit implements ShouldQueue
         $profiles = app(ProfileRepository::class);
         $profile = $profiles->profile($this->profile);
 
-        $contents = file_get_contents($media->getPath());
-
-        if ($contents === false) {
-            throw new RuntimeException("Unable to read media file [{$media->getPath()}].");
-        }
+        $contents = MediaContents::read($media);
 
         $category = FileCategoryDetector::detect($media->mime_type);
 

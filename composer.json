@@ -43,7 +43,7 @@
     },
     "scripts": {
         "test": "vendor/bin/pest",
-        "test:coverage": "@php -d xdebug.mode=coverage vendor/bin/pest --coverage --min=90",
+        "test:coverage": "@php -d xdebug.mode=coverage vendor/bin/pest --coverage --min=100",
         "lint": "vendor/bin/pint",
         "analyse": "vendor/bin/phpstan analyse",
         "ci": ["@lint --test", "@analyse", "@test:coverage"]

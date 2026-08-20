@@ -147,3 +147,29 @@ it('survives a serialize round-trip with its id and profile intact', function ()
         ->and($job->mediaId)->toBe(7)
         ->and($job->profile)->toBe('avatar');
 });
+
+it('is routed onto the configured connection when one is set', function (): void {
+    config()->set('imagekit.queue.connection', 'redis-uploads');
+
+    expect((new PushFileToImageKit(1, 'avatar'))->connection)->toBe('redis-uploads');
+});
+
+it('fails with a RuntimeException when the file is missing on disk', function (): void {
+    Event::fake([FileUploadFailed::class]);
+
+    $media = attachImage($this->model);
+    unlink($media->getPath());
+
+    $uploader = Mockery::mock(UploadsFiles::class);
+    $uploader->shouldNotReceive('upload');
+    $this->app->instance(UploadsFiles::class, $uploader);
+
+    try {
+        (new PushFileToImageKit($media->id, 'avatar'))->handle();
+        $this->fail('Expected a RuntimeException for the missing file.');
+    } catch (RuntimeException $exception) {
+        expect($exception->getMessage())->toContain('Unable to read media file');
+    }
+
+    Event::assertDispatched(FileUploadFailed::class);
+});

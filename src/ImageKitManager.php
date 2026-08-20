@@ -7,7 +7,6 @@ namespace Thecyrilcril\ImageKit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Override;
-use RuntimeException;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
@@ -21,6 +20,7 @@ use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MediaContents;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
@@ -68,11 +68,7 @@ final class ImageKitManager implements ImageKitClient
     {
         $compressionProfile = app(ProfileRepository::class)->profile($profile);
 
-        $contents = file_get_contents($media->getPath());
-
-        if ($contents === false) {
-            throw new RuntimeException("Unable to read media file [{$media->getPath()}].");
-        }
+        $contents = MediaContents::read($media);
 
         if (FileCategoryDetector::detect($media->mime_type)->compressible()) {
             $contents = app(CompressesImages::class)

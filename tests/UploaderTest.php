@@ -68,3 +68,32 @@ it('converts the SDK error object into an exception', function (): void {
 it('refuses to upload empty contents', function (): void {
     app(UploadsFiles::class)->upload('', new UploadOptions(fileName: 'a.jpg'));
 })->throws(UploadFailed::class, 'empty');
+
+it('throws when the SDK response carries neither an error nor a result', function (): void {
+    $this->sdk->shouldReceive('uploadFile')->once()->andReturn((object) ['error' => null, 'result' => null]);
+
+    app(UploadsFiles::class)->upload('bytes', new UploadOptions(fileName: 'a.jpg'));
+})->throws(UploadFailed::class, 'no result');
+
+it('guesses the data uri mime type from the file extension', function (string $fileName, string $mime): void {
+    $this->sdk->shouldReceive('uploadFile')
+        ->once()
+        ->withArgs(fn (array $options): bool => str_starts_with((string) $options['file'], 'data:'.$mime.';base64,'))
+        ->andReturn((object) [
+            'error' => null,
+            'result' => (object) ['fileId' => 'f1', 'filePath' => '/x', 'url' => 'u', 'name' => $fileName, 'size' => 5],
+        ]);
+
+    app(UploadsFiles::class)->upload('bytes', new UploadOptions(fileName: $fileName));
+})->with([
+    ['a.jpg', 'image/jpeg'],
+    ['a.JPEG', 'image/jpeg'],
+    ['a.png', 'image/png'],
+    ['a.gif', 'image/gif'],
+    ['a.webp', 'image/webp'],
+    ['a.avif', 'image/avif'],
+    ['a.svg', 'image/svg+xml'],
+    ['a.pdf', 'application/pdf'],
+    ['a.mp4', 'video/mp4'],
+    ['a.bin', 'application/octet-stream'],
+]);
