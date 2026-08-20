@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
 use ImageKit\ImageKit as Sdk;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
+use Thecyrilcril\ImageKit\Support\FolderResolver;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 
 /**
@@ -23,12 +24,18 @@ use Thecyrilcril\ImageKit\Support\MediaModel;
  * running it against the wrong environment — a staging app pointed at a
  * production ImageKit account, say — would report every production file as an
  * orphan. Read the list before passing --delete.
+ *
+ * Every run is confined to this application's root folder (imagekit.folder).
+ * Several applications commonly share one ImageKit account, and each of them
+ * holds no rows for the others' files, so without that boundary every other
+ * app's file looks like an orphan. Files outside the root are never reported,
+ * and --delete refuses to run when no root is configured.
  */
 final class ReconcileCommand extends Command
 {
     /** @var string */
     protected $signature = 'imagekit:reconcile
-        {--folder= : Only inspect files under this ImageKit folder}
+        {--folder= : Only inspect this sub-folder of the configured root folder}
         {--delete : Delete the orphans instead of only listing them}
         {--chunk=100 : How many files to fetch from ImageKit per request}';
 
@@ -38,8 +45,26 @@ final class ReconcileCommand extends Command
     public function handle(Sdk $sdk, DeletesRemoteFiles $remover): int
     {
         $chunk = max(1, (int) $this->option('chunk'));
-        $folder = $this->stringOption('folder');
         $shouldDelete = (bool) $this->option('delete');
+
+        $root = FolderResolver::root();
+
+        if ($root === '' && $shouldDelete) {
+            $this->components->error(
+                'No root folder is configured, so a delete could reach every file on the account. '
+                .'Set IMAGEKIT_FOLDER to this application\'s folder and run again.'
+            );
+
+            return self::FAILURE;
+        }
+
+        $scope = $this->scope($root);
+
+        if ($scope === null) {
+            $this->components->warn('No root folder is configured: inspecting the whole account.');
+        } else {
+            $this->components->info(sprintf('Scoped to ImageKit folder %s.', $scope));
+        }
 
         $known = $this->knownFilePaths();
 
@@ -64,8 +89,8 @@ final class ReconcileCommand extends Command
         do {
             $parameters = ['limit' => $chunk, 'skip' => $skip];
 
-            if ($folder !== null) {
-                $parameters['path'] = $folder;
+            if ($scope !== null) {
+                $parameters['path'] = $scope;
             }
 
             $response = $sdk->listFiles($parameters);
@@ -91,6 +116,12 @@ final class ReconcileCommand extends Command
                 $fileId = isset($file->fileId) ? (string) $file->fileId : '';
 
                 if ($path === '' || $fileId === '' || $known->contains($path)) {
+                    continue;
+                }
+
+                // Belt and braces: even if ImageKit's listing returned a file
+                // from outside the root, it is not ours to report or delete.
+                if ($root !== '' && ! str_starts_with($path, '/'.$root.'/')) {
                     continue;
                 }
 
@@ -160,6 +191,21 @@ final class ReconcileCommand extends Command
         $this->components->info(sprintf('Deleted %d orphaned file(s) from ImageKit.', $deleted));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The ImageKit path to list: the root folder, plus the optional --folder
+     * sub-folder beneath it. Null only when no root is configured and no
+     * sub-folder was given.
+     */
+    private function scope(string $root): ?string
+    {
+        $subFolder = $this->stringOption('folder');
+        $subFolder = $subFolder === null ? '' : trim($subFolder, '/');
+
+        $path = FolderResolver::resolve($subFolder);
+
+        return $path === '' ? null : '/'.$path;
     }
 
     private function stringOption(string $name): ?string

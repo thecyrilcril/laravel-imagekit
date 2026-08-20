@@ -24,13 +24,16 @@ Publish the config file:
 php artisan vendor:publish --tag=imagekit-config
 ```
 
-Set the three ImageKit credentials in `.env`:
+Set the three ImageKit credentials and this application's root folder in `.env`:
 
 ```env
 IMAGEKIT_PUBLIC_KEY=
 IMAGEKIT_PRIVATE_KEY=
 IMAGEKIT_URL_ENDPOINT=
+IMAGEKIT_FOLDER=my-app
 ```
+
+`IMAGEKIT_FOLDER` is the folder every upload lands under (default `uploads`). Give each application that shares an ImageKit account its own value: it keeps their files apart, and `imagekit:reconcile` never looks outside it. See [Root folder](#root-folder).
 
 Point media-library's URL generator at the package's builder, in `config/media-library.php`:
 
@@ -276,17 +279,13 @@ It lists, and does not delete. To act on the list:
 php artisan imagekit:reconcile --delete
 ```
 
-Options: `--folder=kitwire` limits the scan to one ImageKit folder, and `--chunk=100` sets how many files are fetched per request.
+Every run is confined to this application's root folder, `IMAGEKIT_FOLDER`. Files outside it are never listed as orphans and never deleted, even if ImageKit returns them. Options: `--folder=avatars` narrows the scan to one sub-folder *under* the root (so `kitwire/avatars` when `IMAGEKIT_FOLDER=kitwire`), and `--chunk=100` sets how many files are fetched per request.
 
-On a shared ImageKit account, always scope `--delete` to this application's root folder — the value of `IMAGEKIT_FOLDER`:
-
-```bash
-php artisan imagekit:reconcile --delete --folder=kitwire
-```
+If `IMAGEKIT_FOLDER` is empty, the command still lists the whole account, but `--delete` refuses to run: without a root there is no boundary between your files and another application's.
 
 > **Read the listing before you pass `--delete`.**
 >
-> The command decides what counts as an orphan by comparing ImageKit against *this application's* media table. Point a staging app at a production ImageKit account and every production file looks orphaned. The same is true when one ImageKit account is shared by several applications: each sees the others' files as orphans, because it holds no rows referencing them. Scope with `--folder=<root>` (your `IMAGEKIT_FOLDER`) when an account is shared.
+> The command decides what counts as an orphan by comparing ImageKit against *this application's* media table. Point a staging app at a production ImageKit account and every production file looks orphaned. The root-folder boundary protects other applications sharing the account, but not a second environment of *this* application using the same `IMAGEKIT_FOLDER`.
 >
 > As a guard, the command refuses `--delete` outright when no media row references ImageKit at all, since an empty local side is indistinguishable from being pointed at the wrong account.
 
@@ -333,7 +332,7 @@ If your application is API-only, it may have no writable `public/` directory and
 
 ## Footguns
 
-**`imagekit:reconcile --delete` on a shared account without `--folder`** deletes every other application's files, because none of them have rows in this app's media table. Always pass `--folder=<root>`, where the root is this app's `IMAGEKIT_FOLDER`.
+**Two environments sharing one `IMAGEKIT_FOLDER`.** `imagekit:reconcile --delete` only ever touches files under this app's root, so other applications are safe. But a staging app with the same `IMAGEKIT_FOLDER` as production sees every production file under that root as an orphan. Give each environment its own folder (`kitwire-staging`, `kitwire`).
 
 Two `format` choices look reasonable and are not:
 

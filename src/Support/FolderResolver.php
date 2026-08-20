@@ -11,11 +11,21 @@ namespace Thecyrilcril\ImageKit\Support;
  */
 final class FolderResolver
 {
-    public static function resolve(string $collection): string
+    /**
+     * The application's root folder on ImageKit, without surrounding slashes.
+     * Empty when the app has opted out of a root.
+     */
+    public static function root(): string
     {
         /** @var scalar|null $configured */
         $configured = config('imagekit.folder', 'uploads');
-        $root = trim((string) $configured, '/');
+
+        return trim((string) $configured, '/');
+    }
+
+    public static function resolve(string $collection): string
+    {
+        $root = self::root();
 
         if ($collection === '') {
             return $root;

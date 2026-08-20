@@ -2,6 +2,13 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.3.1
+
+### Changed
+
+- **`imagekit:reconcile` is now confined to `IMAGEKIT_FOLDER`.** The listing is always scoped to the configured root folder, and any file outside `/{root}/` is ignored even if ImageKit returns it, so a bare `--delete` can no longer reach another application's files on a shared account. `--folder=<name>` now means a sub-folder *under* the root (`--folder=avatars` inspects `/{root}/avatars`), not an absolute ImageKit path. When `IMAGEKIT_FOLDER` is empty the command still lists the whole account but refuses `--delete`.
+- README's Installation section now includes `IMAGEKIT_FOLDER` alongside the three credentials.
+
 ## v0.3.0
 
 ### Breaking

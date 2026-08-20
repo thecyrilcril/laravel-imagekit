@@ -48,10 +48,10 @@ function attachWithRemotePath(TestModel $model, string $remotePath): void
 }
 
 it('reports when every remote file is accounted for', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
-        ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
+        ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
     ]));
 
     $this->artisan('imagekit:reconcile')
@@ -60,11 +60,11 @@ it('reports when every remote file is accounted for', function (): void {
 });
 
 it('lists an orphan without deleting it', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
-        ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
-        ['fileId' => 'orphan-1', 'filePath' => '/stale/gone.jpg'],
+        ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
+        ['fileId' => 'orphan-1', 'filePath' => '/uploads/stale/gone.jpg'],
     ]));
 
     $remover = Mockery::mock(DeletesRemoteFiles::class);
@@ -77,11 +77,11 @@ it('lists an orphan without deleting it', function (): void {
 });
 
 it('deletes orphans only when explicitly asked', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
-        ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
-        ['fileId' => 'orphan-1', 'filePath' => '/stale/gone.jpg'],
+        ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
+        ['fileId' => 'orphan-1', 'filePath' => '/uploads/stale/gone.jpg'],
     ]));
 
     $remover = Mockery::mock(DeletesRemoteFiles::class);
@@ -109,7 +109,7 @@ it('refuses to delete when no media row references imagekit at all', function ()
 
 it('still lists orphans when nothing is referenced, so the state is inspectable', function (): void {
     $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
-        ['fileId' => 'orphan-1', 'filePath' => '/stale/gone.jpg'],
+        ['fileId' => 'orphan-1', 'filePath' => '/uploads/stale/gone.jpg'],
     ]));
 
     $this->artisan('imagekit:reconcile')
@@ -118,19 +118,19 @@ it('still lists orphans when nothing is referenced, so the state is inspectable'
 });
 
 it('pages through the listing until a short page arrives', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 2, 'skip' => 0])
+        ->with(['limit' => 2, 'skip' => 0, 'path' => '/uploads'])
         ->andReturn(listingReturns([
-            ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
-            ['fileId' => 'f2', 'filePath' => '/page-one/b.jpg'],
+            ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
+            ['fileId' => 'f2', 'filePath' => '/uploads/page-one/b.jpg'],
         ]));
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 2, 'skip' => 2])
+        ->with(['limit' => 2, 'skip' => 2, 'path' => '/uploads'])
         ->andReturn(listingReturns([
-            ['fileId' => 'f3', 'filePath' => '/page-two/c.jpg'],
+            ['fileId' => 'f3', 'filePath' => '/uploads/page-two/c.jpg'],
         ]));
 
     $this->artisan('imagekit:reconcile', ['--chunk' => 2])
@@ -139,18 +139,84 @@ it('pages through the listing until a short page arrives', function (): void {
 });
 
 it('scopes the listing to a folder when asked', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 100, 'skip' => 0, 'path' => 'avatars'])
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/avatars'])
         ->andReturn(listingReturns([]));
 
     $this->artisan('imagekit:reconcile', ['--folder' => 'avatars'])
+        ->expectsOutputToContain('/uploads/avatars')
+        ->assertSuccessful();
+});
+
+it('always scopes the listing to the configured root folder', function (): void {
+    config()->set('imagekit.folder', '/kitwire/');
+    attachWithRemotePath($this->model, '/kitwire/known/a.jpg');
+
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/kitwire'])
+        ->andReturn(listingReturns([]));
+
+    $this->artisan('imagekit:reconcile')
+        ->expectsOutputToContain('/kitwire')
+        ->assertSuccessful();
+});
+
+it('never treats a file outside the root folder as an orphan, even if imagekit returns one', function (): void {
+    config()->set('imagekit.folder', 'kitwire');
+    attachWithRemotePath($this->model, '/kitwire/known/a.jpg');
+
+    // Another app's file leaking into the listing must be invisible here:
+    // this app holds no row for it, so it would otherwise look orphaned.
+    $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
+        ['fileId' => 'f1', 'filePath' => '/kitwire/known/a.jpg'],
+        ['fileId' => 'theirs', 'filePath' => '/kwadatis/photos/p.jpg'],
+        ['fileId' => 'lookalike', 'filePath' => '/kitwire-old/x.jpg'],
+    ]));
+
+    $remover = Mockery::mock(DeletesRemoteFiles::class);
+    $remover->shouldReceive('delete')->never();
+    $this->app->instance(DeletesRemoteFiles::class, $remover);
+
+    $this->artisan('imagekit:reconcile', ['--delete' => true])
+        ->expectsOutputToContain('No orphans found')
+        ->assertSuccessful();
+});
+
+it('refuses to delete when no root folder is configured', function (): void {
+    config()->set('imagekit.folder', '');
+    attachWithRemotePath($this->model, '/known/a.jpg');
+
+    $this->sdk->shouldReceive('listFiles')->never();
+
+    $remover = Mockery::mock(DeletesRemoteFiles::class);
+    $remover->shouldReceive('delete')->never();
+    $this->app->instance(DeletesRemoteFiles::class, $remover);
+
+    $this->artisan('imagekit:reconcile', ['--delete' => true])
+        ->expectsOutputToContain('IMAGEKIT_FOLDER')
+        ->assertFailed();
+});
+
+it('still lists the whole account when no root folder is configured', function (): void {
+    config()->set('imagekit.folder', '');
+    attachWithRemotePath($this->model, '/known/a.jpg');
+
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0])
+        ->andReturn(listingReturns([
+            ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
+            ['fileId' => 'o1', 'filePath' => '/anything/else.jpg'],
+        ]));
+
+    $this->artisan('imagekit:reconcile')
+        ->expectsOutputToContain('Orphaned files')
         ->assertSuccessful();
 });
 
 it('fails loudly when imagekit rejects the listing', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()->andReturn((object) [
         'error' => (object) ['message' => 'Invalid private key'],
@@ -163,14 +229,14 @@ it('fails loudly when imagekit rejects the listing', function (): void {
 });
 
 it('ignores media rows that were never uploaded to imagekit', function (): void {
-    attachWithRemotePath($this->model, '/known/a.jpg');
+    attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     // A second row with no imagekit.file_path must not be mistaken for a
     // reference to anything, nor crash the path collection.
     $this->model->addMedia(UploadedFile::fake()->image('b.jpg', 20, 20))->toMediaCollection('plain');
 
     $this->sdk->shouldReceive('listFiles')->once()->andReturn(listingReturns([
-        ['fileId' => 'f1', 'filePath' => '/known/a.jpg'],
+        ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
     ]));
 
     $this->artisan('imagekit:reconcile')
