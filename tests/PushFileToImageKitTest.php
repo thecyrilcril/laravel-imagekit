@@ -117,3 +117,11 @@ it('is routed onto the configured queue', function (): void {
     expect($job->queue)->toBe('custom-queue')
         ->and($job->tries)->toBe(3);
 });
+
+it('survives a serialize round-trip with its id and profile intact', function (): void {
+    $job = unserialize(serialize(new PushFileToImageKit(7, 'avatar')));
+
+    expect($job)->toBeInstanceOf(PushFileToImageKit::class)
+        ->and($job->mediaId)->toBe(7)
+        ->and($job->profile)->toBe('avatar');
+});
