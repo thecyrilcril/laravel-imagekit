@@ -36,8 +36,17 @@ jobs:
           composer require "illuminate/support:${{ matrix.laravel }}" --no-interaction --no-update
           composer update --prefer-dist --no-interaction
 
-      - name: Run CI suite (Pint, PHPStan, Pest with coverage)
+      # The 100% coverage gate only holds where every file can execute.
+      # Illuminate\Image does not exist below Laravel 13.20, so on Laravel 12
+      # the compressor tests skip themselves and that file stays uncovered by
+      # design. Those legs still run Pint, PHPStan and the full suite.
+      - name: Run CI suite (Pint, PHPStan, Pest with 100% coverage gate)
+        if: matrix.laravel == '13.*'
         run: composer ci
+
+      - name: Run CI suite (Pint, PHPStan, Pest)
+        if: matrix.laravel == '12.*'
+        run: composer ci:no-coverage-gate
 
   # Compression is optional by design: below Laravel 13.20, or without
   # intervention/image, the package binds a null compressor and uploads
