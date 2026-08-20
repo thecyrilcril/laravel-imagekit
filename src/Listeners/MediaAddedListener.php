@@ -7,8 +7,7 @@ namespace Thecyrilcril\ImageKit\Listeners;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
-use Thecyrilcril\ImageKit\ImageKitManager;
-use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 
 /**
@@ -42,13 +41,17 @@ final readonly class MediaAddedListener
 
         // await:true uploads before the response is built, so an API caller
         // receives the final CDN URL instead of a temporary local one.
+        // Both branches go through the bound client, so ImageKit::fake()
+        // intercepts queued collections as well as awaited ones.
+        $client = app(ImageKitClient::class);
+
         if (app(ProfileRepository::class)->profile($profile)->await) {
-            app(ImageKitManager::class)->uploadNow($media, $profile);
+            $client->uploadNow($media, $profile);
 
             return;
         }
 
-        PushFileToImageKit::dispatch($media->id, $profile);
+        $client->upload($media, $profile);
     }
 
     /**

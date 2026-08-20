@@ -6,7 +6,7 @@ namespace Thecyrilcril\ImageKit\Facades;
 
 use Illuminate\Support\Facades\Facade;
 use Override;
-use Thecyrilcril\ImageKit\ImageKitManager;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Testing\ImageKitFake;
 
 /**
@@ -16,7 +16,7 @@ use Thecyrilcril\ImageKit\Testing\ImageKitFake;
  * @method static bool delete(string $fileId)
  * @method static int backfill(string $modelClass, string $collection, ?string $profile = null)
  *
- * @see ImageKitManager
+ * @see ImageKitClient
  */
 final class ImageKit extends Facade
 {
@@ -32,6 +32,6 @@ final class ImageKit extends Facade
     #[Override]
     protected static function getFacadeAccessor(): string
     {
-        return ImageKitManager::class;
+        return ImageKitClient::class;
     }
 }

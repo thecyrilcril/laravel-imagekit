@@ -19,6 +19,7 @@ use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Listeners\MediaAddedListener;
 use Thecyrilcril\ImageKit\Observers\MediaObserver;
@@ -60,7 +61,7 @@ final class ImageKitServiceProvider extends ServiceProvider
 
         $this->app->singleton(GeneratesFileUrls::class, UrlFactory::class);
 
-        $this->app->singleton(ImageKitManager::class);
+        $this->app->singleton(ImageKitClient::class, ImageKitManager::class);
     }
 
     public function boot(): void

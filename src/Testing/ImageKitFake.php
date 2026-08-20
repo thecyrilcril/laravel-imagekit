@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit\Testing;
 
+use Illuminate\Database\Eloquent\Model;
 use Override;
 use PHPUnit\Framework\Assert;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
-use Thecyrilcril\ImageKit\ImageKitManager;
 
-final class ImageKitFake extends ImageKitManager
+final class ImageKitFake implements ImageKitClient
 {
     /** @var list<array{media: Media, profile: string|null}> */
     private array $uploads = [];
@@ -63,6 +65,25 @@ final class ImageKitFake extends ImageKitManager
         $this->deletions[] = $fileId;
 
         return true;
+    }
+
+    /**
+     * URLs are pure string building, so the fake delegates to the real
+     * builder: consumers see the same URLs in tests as in production.
+     */
+    #[Override]
+    public function url(string $path, ?string $preset = null, ?string $mimeType = null): string
+    {
+        return app(GeneratesFileUrls::class)->build($path, $preset, $mimeType);
+    }
+
+    /**
+     * @param  class-string<Model>  $modelClass
+     */
+    #[Override]
+    public function backfill(string $modelClass, string $collection, ?string $profile = null): int
+    {
+        return 0;
     }
 
     public function assertUploaded(Media $media): void

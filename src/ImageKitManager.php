@@ -6,11 +6,13 @@ namespace Thecyrilcril\ImageKit;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
+use Override;
 use RuntimeException;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
@@ -22,16 +24,12 @@ use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Throwable;
 
-/**
- * Deliberately NOT final: ImageKitFake extends this to record calls rather
- * than perform them, which is what ImageKit::fake() swaps into the container.
- * Pint's final_class rule must not be applied here.
- */
-class ImageKitManager
+final class ImageKitManager implements ImageKitClient
 {
     /**
      * Queue an upload for a media row that already exists.
      */
+    #[Override]
     public function upload(Media $media, ?string $profile = null): void
     {
         PushFileToImageKit::dispatch($media->id, $profile);
@@ -46,6 +44,7 @@ class ImageKitManager
      * queued. A CDN outage must not cost the user their upload, so null is
      * returned rather than an exception propagating into the response.
      */
+    #[Override]
     public function uploadNow(Media $media, ?string $profile = null): ?UploadedFileResult
     {
         try {
@@ -93,11 +92,13 @@ class ImageKitManager
         return $result;
     }
 
+    #[Override]
     public function url(string $path, ?string $preset = null, ?string $mimeType = null): string
     {
         return app(GeneratesFileUrls::class)->build($path, $preset, $mimeType);
     }
 
+    #[Override]
     public function delete(string $fileId): bool
     {
         return app(DeletesRemoteFiles::class)->delete($fileId);
@@ -109,6 +110,7 @@ class ImageKitManager
      *
      * @param  class-string<Model>  $modelClass
      */
+    #[Override]
     public function backfill(string $modelClass, string $collection, ?string $profile = null): int
     {
         $queued = 0;

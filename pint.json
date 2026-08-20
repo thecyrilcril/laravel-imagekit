@@ -1,9 +1,7 @@
 {
     "preset": "laravel",
     "exclude": [],
-    "notPath": [
-        "src/ImageKitManager.php"
-    ],
+    "notPath": [],
     "rules": {
         "declare_strict_types": true,
         "final_class": true,
