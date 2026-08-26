@@ -13,10 +13,13 @@ use Override;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Commands\ReconcileCommand;
+use Thecyrilcril\ImageKit\Compression\ImagickImageConverter;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
 use Thecyrilcril\ImageKit\Compression\NullImageCompressor;
+use Thecyrilcril\ImageKit\Compression\NullImageConverter;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
+use Thecyrilcril\ImageKit\Contracts\ConvertsImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
@@ -37,6 +40,22 @@ final class ImageKitServiceProvider extends ServiceProvider
             return $this->compressionAvailable()
                 ? new LaravelImageCompressor
                 : new NullImageCompressor;
+        });
+
+        // Conversion is a SEPARATE contract from compression, bound
+        // separately, because it must run at store time rather than during
+        // the queued CDN offload — see `ConvertsImages` for why that
+        // distinction is load-bearing rather than stylistic.
+        //
+        // Bound eagerly to the Imagick implementation, which answers
+        // `supported()` by trial decode and degrades to passing the bytes
+        // through. Deciding here instead would mean running a trial decode
+        // during container registration on every request, for a capability
+        // most requests never use.
+        $this->app->singleton(ConvertsImages::class, function (): ConvertsImages {
+            return extension_loaded('imagick')
+                ? new ImagickImageConverter
+                : new NullImageConverter;
         });
 
         $this->app->singleton(Sdk::class, function (): Sdk {

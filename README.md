@@ -248,6 +248,69 @@ Even when compression is available, it only ever applies to files it makes sense
 | Other media ImageKit can transform (SVG, video) | No — uploaded as-is; ImageKit still applies delivery-time presets on read |
 | Plain files (PDF, DOCX, XLSX, ZIP, …) | No — uploaded as-is; no transformation is ever attempted |
 
+## Conversion (HEIC, WebP, AVIF → JPEG)
+
+Optional, and separate from compression. Use it when you need a JPEG that still carries its EXIF metadata — the case compression cannot serve, because GD strips EXIF on every re-encode.
+
+The obvious use is an iPhone upload. Safari's file picker hands over HEIC, which many server-side image pipelines and vision APIs reject outright.
+
+```php
+use Thecyrilcril\ImageKit\Contracts\ConvertsImages;
+
+public function store(Request $request, ConvertsImages $converter)
+{
+    $bytes = $request->file('photo')->get();
+
+    // Returns the input unchanged for an already-JPEG file, for a format it
+    // does not handle, and where the environment cannot convert at all.
+    $jpeg = $converter->toJpeg($bytes, $request->file('photo')->getClientOriginalName());
+}
+```
+
+**Convert before you upload, and read the local file.** ImageKit strips EXIF on delivery (see [Footguns](#footguns)), so converting via a CDN transformation destroys the metadata you converted in order to keep.
+
+### What it handles
+
+| Source | Behaviour |
+|---|---|
+| HEIC / HEIF | Converted to JPEG, EXIF preserved |
+| WebP | Converted to JPEG, EXIF preserved |
+| AVIF | Converted to JPEG, EXIF preserved |
+| JPEG | Returned **byte for byte** — never re-encoded |
+| Anything else | Returned unchanged |
+
+Format is detected by magic bytes, never by filename: a phone naming a HEIC `photo.jpg` is common enough that trusting the extension would pass it straight through.
+
+### Checking support first
+
+```php
+if (! $converter->supported('heic')) {
+    // Refuse the upload, or accept it unconverted — your call.
+}
+```
+
+`supported()` performs a **trial decode of a real sample**. It does not consult `Imagick::queryFormats()`, which reports coder registration rather than usable delegates: measured on a machine where it listed HEIC while writing HEIC failed outright, and yet real HEIC files decoded perfectly. Read and write support genuinely differ.
+
+### Requirements, and the one that bites
+
+Conversion needs the **imagick** extension. Where it is absent the package binds a null converter that returns the original bytes and logs one notice.
+
+HEIC additionally needs `libheif` **with an HEVC decode plugin**. On Ubuntu/Debian `libheif` is present but `libheif-plugin-libde265` is only a *Suggests*, so HEIC decode fails until:
+
+```bash
+sudo apt install libheif-plugin-libde265
+```
+
+On a managed platform where you cannot install packages, verify with `supported('heic')` before relying on it. The failure degrades to "uploads proceed unconverted" rather than to an outage — but a HEIC that reaches a JPEG-only downstream service is still rejected there.
+
+### Errors
+
+`toJpeg()` throws `ConversionFailed` **only** for a format it declared it can decode whose bytes are corrupt or truncated. An unsupported environment is not an error: it returns the input unchanged, so `supported()` is the check, not a try/catch.
+
+### Out of scope
+
+JPEG XL, DNG/RAW, Ultra HDR and Motion/Live Photos are deliberately not handled. The last two are already valid baseline JPEGs that decode correctly and need no special treatment.
+
 ## Non-image files
 
 PDFs, DOCX, XLSX, ZIP, and any other non-image file upload and serve correctly. `addMedia()` and friends work the same way regardless of file type. The only thing that changes is transformation: it applies only to media ImageKit can actually transform (images, vector, video). An unrecognised or non-transformable MIME type is served as a plain URL with no transformation parameters, because appending them would return a broken link rather than a working file.
@@ -338,3 +401,11 @@ Two `format` choices look reasonable and are not:
 
 - **`format: 'png'` on a photograph makes the file *larger* than the source JPEG**, not smaller. PNG is lossless and ignores `quality` entirely, so a photo re-encoded as PNG loses none of the detail JPEG's lossy compression would have discarded — and pays for that in file size. Leave `format: null` (source format kept) or use `'webp'` for photographs.
 - **`format: 'jpeg'` flattens transparency to a solid background.** JPEG has no alpha channel, so any transparent pixels in a PNG or WebP source are filled in rather than preserved. The package logs a warning when this happens but does not block the upload — decide deliberately if any of your source images can have transparency.
+
+**Compression destroys EXIF, and the default driver is the one that does it silently.** GD strips EXIF on *every* re-encode — including JPEG→JPEG, where nothing about the format changes — and `Illuminate\Image` defaults to the GD driver. If your images carry metadata you depend on (a capture time, GPS coordinates, a copyright field), compression will remove it and nothing will report that it did.
+
+Use `ImageKitConverter` (below) when you need a normalised JPEG *with* its metadata intact; it uses Imagick, which preserves EXIF automatically, and refuses rather than converting lossily where Imagick is unavailable.
+
+**The CDN strips EXIF on delivery, whatever you upload.** Measured across five delivery variants: no-transform, `?tr=f-jpg`, `?tr=w-800` and `?tr=f-jpg,q-80` all returned a file with the metadata gone. Only `?tr=orig-true` preserved it.
+
+So a consumer that needs EXIF **must convert before upload and read the local file**, not the CDN URL. Delegating format conversion to ImageKit looks like the obvious shortcut and quietly defeats the purpose.
