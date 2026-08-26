@@ -195,7 +195,7 @@ it('preserves DateTimeOriginal converting webp to jpeg', function (): void {
         $this->markTestSkipped('This Imagick build cannot round-trip WebP with EXIF.');
     }
 
-    $converted = new ImagickImageConverter()->toJpeg((string) imageAs('webp'), 'photo.webp');
+    $converted = (new ImagickImageConverter)->toJpeg((string) imageAs('webp'), 'photo.webp');
 
     expect(dateTimeOriginalOf($converted))->toBe('2026:08:26 14:30:00');
 });
@@ -205,7 +205,7 @@ it('preserves DateTimeOriginal converting avif to jpeg', function (): void {
         $this->markTestSkipped('This Imagick build cannot round-trip AVIF with EXIF.');
     }
 
-    $converted = new ImagickImageConverter()->toJpeg((string) imageAs('avif'), 'photo.avif');
+    $converted = (new ImagickImageConverter)->toJpeg((string) imageAs('avif'), 'photo.avif');
 
     expect(dateTimeOriginalOf($converted))->toBe('2026:08:26 14:30:00');
 });
@@ -219,7 +219,7 @@ it('preserves DateTimeOriginal converting avif to jpeg', function (): void {
 it('returns an already-jpeg input unchanged, byte for byte', function (): void {
     $jpeg = jpegWithExif();
 
-    $converted = new ImagickImageConverter()->toJpeg($jpeg, 'photo.jpg');
+    $converted = (new ImagickImageConverter)->toJpeg($jpeg, 'photo.jpg');
 
     expect($converted)->toBe($jpeg)
         ->and(dateTimeOriginalOf($converted))->toBe('2026:08:26 14:30:00');
@@ -232,7 +232,7 @@ it('never calls stripImage, which would destroy the metadata in one line', funct
         $this->markTestSkipped('This Imagick build cannot round-trip WebP with EXIF.');
     }
 
-    expect(dateTimeOriginalOf(new ImagickImageConverter()->toJpeg((string) imageAs('webp'), 'a.webp')))->not->toBeNull();
+    expect(dateTimeOriginalOf((new ImagickImageConverter)->toJpeg((string) imageAs('webp'), 'a.webp')))->not->toBeNull();
 });
 
 /*
@@ -302,7 +302,7 @@ it('answers supported() by decoding a real sample, so it cannot claim a capabili
 });
 
 it('does not trust queryFormats, which reports coder registration rather than usable delegates', function (): void {
-    $listed = in_array('HEIC', new Imagick()->queryFormats(), true);
+    $listed = in_array('HEIC', (new Imagick)->queryFormats(), true);
 
     // Where the two disagree, `supported()` must follow the trial decode.
     // Where they agree this simply passes, which is also correct.
@@ -310,11 +310,11 @@ it('does not trust queryFormats, which reports coder registration rather than us
         $this->markTestSkipped('queryFormats does not list HEIC here, so the divergence cannot be observed.');
     }
 
-    expect(new ImagickImageConverter()->supported('heic'))->toBeBool();
+    expect((new ImagickImageConverter)->supported('heic'))->toBeBool();
 });
 
 it('reports no support for a format it does not handle', function (string $format): void {
-    expect(new ImagickImageConverter()->supported($format))->toBeFalse();
+    expect((new ImagickImageConverter)->supported($format))->toBeFalse();
 })->with([
     'jpeg is a target, not a source' => ['jpeg'],
     'jpeg xl is out of scope' => ['jxl'],
@@ -337,7 +337,7 @@ it('memoises the trial decode rather than repeating it per file', function (): v
 it('passes through a format it deliberately ignores', function (): void {
     $png = imageAs('png');
 
-    expect(new ImagickImageConverter()->toJpeg((string) $png, 'photo.png'))->toBe($png);
+    expect((new ImagickImageConverter)->toJpeg((string) $png, 'photo.png'))->toBe($png);
 });
 
 it('passes through bytes that are not an image at all', function (): void {
@@ -345,7 +345,7 @@ it('passes through bytes that are not an image at all', function (): void {
     // everything else, and refusing here would break unrelated uploads.
     $bytes = 'certainly not an image';
 
-    expect(new ImagickImageConverter()->toJpeg($bytes, 'notes.txt'))->toBe($bytes);
+    expect((new ImagickImageConverter)->toJpeg($bytes, 'notes.txt'))->toBe($bytes);
 });
 
 /**
@@ -461,7 +461,7 @@ it('flattens a transparent source rather than corrupting it', function (): void 
         $this->markTestSkipped('This Imagick build cannot write WebP.');
     }
 
-    $converted = new ImagickImageConverter()->toJpeg($webp, 'transparent.webp');
+    $converted = (new ImagickImageConverter)->toJpeg($webp, 'transparent.webp');
 
     expect(str_starts_with($converted, "\xFF\xD8\xFF"))->toBeTrue();
 
@@ -532,7 +532,7 @@ it('mirrors as well as rotating, so a flipped source is not merely turned', func
     $image->setImageOrientation(Imagick::ORIENTATION_TOPRIGHT);
     $left->clear();
 
-    new ReflectionMethod(ImagickImageConverter::class, 'applyOrientation')->invoke(null, $image);
+    (new ReflectionMethod(ImagickImageConverter::class, 'applyOrientation'))->invoke(null, $image);
 
     // The blue pixel started on the left; only a horizontal flip moves it right.
     $moved = $image->getImagePixelColor(1, 0)->getColorAsString();
@@ -554,7 +554,7 @@ it('leaves an undefined orientation alone rather than guessing', function (): vo
     }
 
     $result = new Imagick;
-    $result->readImageBlob(new ImagickImageConverter()->toJpeg($webp, 'plain.webp'));
+    $result->readImageBlob((new ImagickImageConverter)->toJpeg($webp, 'plain.webp'));
 
     expect([$result->getImageWidth(), $result->getImageHeight()])->toBe([12, 6]);
 
@@ -577,7 +577,7 @@ it('treats "no sample to try" as cannot, never as a silent yes', function (): vo
     // `probeFor()` has no sample for a format outside its set.
     ImagickImageConverter::resetCapabilities();
 
-    expect(new ImagickImageConverter()->supported('tiff'))->toBeFalse();
+    expect((new ImagickImageConverter)->supported('tiff'))->toBeFalse();
 });
 
 it('returns null rather than throwing when a probe cannot be generated', function (): void {

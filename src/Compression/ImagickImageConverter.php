@@ -100,7 +100,7 @@ final class ImagickImageConverter implements ConvertsImages
         }
 
         if (! $this->supported($format)) {
-            return new NullImageConverter()->toJpeg($contents, $fileName);
+            return (new NullImageConverter)->toJpeg($contents, $fileName);
         }
 
         try {
