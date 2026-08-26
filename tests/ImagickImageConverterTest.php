@@ -144,6 +144,40 @@ function heicFixture(): string
     return (string) file_get_contents(__DIR__.'/Fixtures/sample.heic');
 }
 
+/**
+ * A converter plus deliberately truncated bytes of a format it can decode
+ * HERE, whatever this build supports.
+ *
+ * HEIC is preferred because it is the real-world case, but any convertible
+ * format proves the same property — and picking one the environment actually
+ * has is what keeps this assertion running on a minimal ImageMagick build
+ * rather than skipping into a coverage gap.
+ *
+ * @return array{converter: ImagickImageConverter, bytes: string, name: string}
+ */
+function truncatedConvertible(): array
+{
+    $converter = new ImagickImageConverter;
+
+    if ($converter->supported('heic')) {
+        return ['converter' => $converter, 'bytes' => substr(heicFixture(), 0, 200), 'name' => 'truncated.heic'];
+    }
+
+    foreach (['webp', 'avif'] as $format) {
+        $sample = imageAs($format);
+
+        if ($sample !== null && $converter->supported($format)) {
+            return [
+                'converter' => $converter,
+                'bytes' => substr($sample, 0, max(8, intdiv(strlen($sample), 3))),
+                'name' => "truncated.{$format}",
+            ];
+        }
+    }
+
+    test()->markTestSkipped('This environment can decode none of the convertible formats.');
+}
+
 /*
 |--------------------------------------------------------------------------
 | EXIF survival — written first, deliberately
@@ -319,26 +353,38 @@ it('passes through bytes that are not an image at all', function (): void {
  * the one case that must fail loudly: passing a truncated file through would
  * upload it as though it were sound.
  */
+/**
+ * Truncated bytes of a format this converter DECLARED it can decode. Driven
+ * through whichever convertible format the environment actually supports —
+ * pinning it to HEIC would skip this on any runner lacking the HEVC decode
+ * plugin, and that is the one behaviour a caller must be able to rely on.
+ */
 it('fails loudly on a truncated file rather than emitting a partial one', function (): void {
-    $converter = new ImagickImageConverter;
+    ['converter' => $converter, 'bytes' => $bytes, 'name' => $name] = truncatedConvertible();
 
-    if (! $converter->supported('heic')) {
-        $this->markTestSkipped('This environment cannot decode HEIC.');
-    }
-
-    expect(fn (): string => $converter->toJpeg(substr(heicFixture(), 0, 200), 'truncated.heic'))
+    expect(fn (): string => $converter->toJpeg($bytes, $name))
         ->toThrow(ConversionFailed::class);
 });
 
 it('names the file in the failure, so the offending upload is identifiable', function (): void {
-    $converter = new ImagickImageConverter;
+    ['converter' => $converter, 'bytes' => $bytes] = truncatedConvertible();
 
-    if (! $converter->supported('heic')) {
-        $this->markTestSkipped('This environment cannot decode HEIC.');
+    expect(fn (): string => $converter->toJpeg($bytes, 'crew-proof.bin'))
+        ->toThrow(ConversionFailed::class, 'crew-proof.bin');
+});
+
+it('chains the underlying cause so the real decoder error is not lost', function (): void {
+    ['converter' => $converter, 'bytes' => $bytes, 'name' => $name] = truncatedConvertible();
+
+    try {
+        $converter->toJpeg($bytes, $name);
+    } catch (ConversionFailed $e) {
+        expect($e->getPrevious())->toBeInstanceOf(Throwable::class);
+
+        return;
     }
 
-    expect(fn (): string => $converter->toJpeg(substr(heicFixture(), 0, 200), 'crew-proof.heic'))
-        ->toThrow(ConversionFailed::class, 'crew-proof.heic');
+    $this->fail('Expected ConversionFailed.');
 });
 
 /*
