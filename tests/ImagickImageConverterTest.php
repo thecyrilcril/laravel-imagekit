@@ -630,3 +630,57 @@ it('hands an unsupported but convertible format to the null converter unchanged'
 
     Log::shouldHaveReceived('warning')->once();
 });
+
+/*
+|--------------------------------------------------------------------------
+| Magic-byte detection
+|--------------------------------------------------------------------------
+|
+| Asserted against crafted headers rather than encoded fixtures, so these run
+| on any build. A test that needed a real AVIF file could only run where an
+| AVIF ENCODER exists — which is not the same question, and left the brand
+| arms uncovered on a minimal CI runner.
+|
+*/
+
+it('recognises every ISO base media brand it claims to handle', function (string $brand, string $expected): void {
+    // 4 bytes of size, then `ftyp`, then the brand — the shape HEIC, HEIF and
+    // AVIF all share.
+    $header = "\x00\x00\x00\x18ftyp".$brand.str_repeat("\x00", 16);
+
+    $detect = new ReflectionMethod(ImagickImageConverter::class, 'detectFormat');
+
+    expect($detect->invoke(null, $header))->toBe($expected);
+})->with([
+    'heic' => ['heic', 'heic'],
+    'heix' => ['heix', 'heic'],
+    'hevc' => ['hevc', 'heic'],
+    'hevx' => ['hevx', 'heic'],
+    'mif1' => ['mif1', 'heif'],
+    'msf1' => ['msf1', 'heif'],
+    'heim' => ['heim', 'heif'],
+    'heis' => ['heis', 'heif'],
+    'avif' => ['avif', 'avif'],
+    'avis' => ['avis', 'avif'],
+]);
+
+it('does not claim an ISO container brand it has no decoder path for', function (): void {
+    // `mp42` is a video container sharing the same box structure. Claiming it
+    // would send video bytes down the image conversion path.
+    $header = "\x00\x00\x00\x18ftypmp42".str_repeat("\x00", 16);
+
+    $detect = new ReflectionMethod(ImagickImageConverter::class, 'detectFormat');
+
+    expect($detect->invoke(null, $header))->toBe('');
+});
+
+it('recognises jpeg and webp by their own signatures', function (string $bytes, string $expected): void {
+    $detect = new ReflectionMethod(ImagickImageConverter::class, 'detectFormat');
+
+    expect($detect->invoke(null, $bytes))->toBe($expected);
+})->with([
+    'jpeg SOI' => ["\xFF\xD8\xFF".str_repeat("\x00", 16), 'jpeg'],
+    'webp RIFF' => ['RIFF'."\x00\x00\x00\x00".'WEBP'.str_repeat("\x00", 8), 'webp'],
+    'riff that is not webp' => ['RIFF'."\x00\x00\x00\x00".'WAVE'.str_repeat("\x00", 8), ''],
+    'not an image' => ['plain text, definitely not an image', ''],
+]);
