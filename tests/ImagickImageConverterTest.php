@@ -75,7 +75,17 @@ function dateTimeOriginalOf(string $bytes): ?string
         : null;
 }
 
-/** The same source image re-encoded into `$format`, or null where unsupported. */
+/**
+ * The same source image re-encoded into `$format`, or null where this Imagick
+ * build cannot produce it.
+ *
+ * A build compiled WITHOUT a delegate for the format may still return bytes —
+ * they simply are not the format asked for, and carry none of the source
+ * metadata. So the result is verified rather than trusted: it must read back
+ * as the requested format, or this returns null and the caller skips. A
+ * bare CI runner with a minimal ImageMagick is exactly this case, and trusting
+ * `getImagesBlob()` there produced three failures that passed locally.
+ */
 function imageAs(string $format, ?string $source = null): ?string
 {
     try {
@@ -85,9 +95,47 @@ function imageAs(string $format, ?string $source = null): ?string
         $bytes = $image->getImagesBlob();
         $image->clear();
 
-        return $bytes === '' ? null : $bytes;
+        if ($bytes === '') {
+            return null;
+        }
+
+        $check = new Imagick;
+        $check->readImageBlob($bytes);
+        $produced = strtolower($check->getImageFormat());
+        $check->clear();
+
+        return $produced === strtolower($format) ? $bytes : null;
     } catch (Throwable) {
         return null;
+    }
+}
+
+/**
+ * Whether a round trip through `$format` preserves EXIF here.
+ *
+ * The EXIF tests assert a property of the CONVERTER, so they must not fail on
+ * a build whose encoder for the intermediate format drops metadata before the
+ * converter is ever reached — that is an environment gap, and reporting it as
+ * a code regression would be a lie.
+ */
+function roundTripKeepsExif(string $format): bool
+{
+    $encoded = imageAs($format);
+
+    if ($encoded === null) {
+        return false;
+    }
+
+    try {
+        $image = new Imagick;
+        $image->readImageBlob($encoded);
+        $image->setImageFormat('jpeg');
+        $jpeg = $image->getImagesBlob();
+        $image->clear();
+
+        return dateTimeOriginalOf($jpeg) !== null;
+    } catch (Throwable) {
+        return false;
     }
 }
 
@@ -109,25 +157,21 @@ function heicFixture(): string
 */
 
 it('preserves DateTimeOriginal converting webp to jpeg', function (): void {
-    $webp = imageAs('webp');
-
-    if ($webp === null) {
-        $this->markTestSkipped('This Imagick build cannot write WebP.');
+    if (! roundTripKeepsExif('webp')) {
+        $this->markTestSkipped('This Imagick build cannot round-trip WebP with EXIF.');
     }
 
-    $converted = new ImagickImageConverter()->toJpeg($webp, 'photo.webp');
+    $converted = new ImagickImageConverter()->toJpeg((string) imageAs('webp'), 'photo.webp');
 
     expect(dateTimeOriginalOf($converted))->toBe('2026:08:26 14:30:00');
 });
 
 it('preserves DateTimeOriginal converting avif to jpeg', function (): void {
-    $avif = imageAs('avif');
-
-    if ($avif === null) {
-        $this->markTestSkipped('This Imagick build cannot write AVIF.');
+    if (! roundTripKeepsExif('avif')) {
+        $this->markTestSkipped('This Imagick build cannot round-trip AVIF with EXIF.');
     }
 
-    $converted = new ImagickImageConverter()->toJpeg($avif, 'photo.avif');
+    $converted = new ImagickImageConverter()->toJpeg((string) imageAs('avif'), 'photo.avif');
 
     expect(dateTimeOriginalOf($converted))->toBe('2026:08:26 14:30:00');
 });
@@ -150,13 +194,11 @@ it('returns an already-jpeg input unchanged, byte for byte', function (): void {
 it('never calls stripImage, which would destroy the metadata in one line', function (): void {
     // Asserted through behaviour rather than by inspecting the source: a
     // stripImage() call anywhere in the conversion path makes this fail.
-    $webp = imageAs('webp');
-
-    if ($webp === null) {
-        $this->markTestSkipped('This Imagick build cannot write WebP.');
+    if (! roundTripKeepsExif('webp')) {
+        $this->markTestSkipped('This Imagick build cannot round-trip WebP with EXIF.');
     }
 
-    expect(dateTimeOriginalOf(new ImagickImageConverter()->toJpeg($webp, 'a.webp')))->not->toBeNull();
+    expect(dateTimeOriginalOf(new ImagickImageConverter()->toJpeg((string) imageAs('webp'), 'a.webp')))->not->toBeNull();
 });
 
 /*
@@ -427,15 +469,26 @@ it('bakes in every exif orientation and resets the tag so nothing rotates twice'
 ]);
 
 it('mirrors as well as rotating, so a flipped source is not merely turned', function (): void {
-    // TOPRIGHT is a horizontal mirror with no rotation. Testing dimensions
-    // alone cannot see it, so compare a pixel that only a flop moves.
+    // TOPRIGHT is a horizontal mirror with NO rotation, so a dimensions-only
+    // assertion cannot see it at all — a converter that ignored mirroring
+    // entirely would still pass the orientation test above.
+    //
+    // Built by composing two solid halves rather than by writing individual
+    // pixels: `setImagePixelColor()` is absent from minimal ImageMagick builds
+    // (it is missing on the CI runner), and a test that errors there reports an
+    // environment gap as a code regression.
+    $left = new Imagick;
+    $left->newImage(1, 1, new ImagickPixel('blue'));
+
     $image = new Imagick;
     $image->newImage(2, 1, new ImagickPixel('red'));
-    $image->setImagePixelColor(0, 0, new ImagickPixel('blue'));
+    $image->compositeImage($left, Imagick::COMPOSITE_OVER, 0, 0);
     $image->setImageOrientation(Imagick::ORIENTATION_TOPRIGHT);
+    $left->clear();
 
     new ReflectionMethod(ImagickImageConverter::class, 'applyOrientation')->invoke(null, $image);
 
+    // The blue pixel started on the left; only a horizontal flip moves it right.
     $moved = $image->getImagePixelColor(1, 0)->getColorAsString();
     $image->clear();
 
