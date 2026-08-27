@@ -124,6 +124,8 @@ php artisan queue:work --queue=default,imagekit
 A preset is picked by media-library's conversion name. Register a conversion with the preset's name, then ask for it:
 
 ```php
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+
 public function registerMediaConversions(?Media $media = null): void
 {
     $this->addMediaConversion('avatar')->performOnCollections('avatar');
