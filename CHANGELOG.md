@@ -2,6 +2,30 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.5.0
+
+### Added
+
+- **`imagekit:install` sets up the package in one run.** After `composer require`, the command publishes this package's config and media-library's config and `create_media_table` migration, rewrites `url_generator` in `config/media-library.php` to `ImageKitUrlBuilder`, prompts for `IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT` and `IMAGEKIT_FOLDER` (appending them to `.env`, with empty placeholders in `.env.example`), and asks before running `migrate`. It never overwrites a published file, an existing env key, or a `url_generator` already pointing at the builder, so re-running it on an installed app changes nothing and reports each step as skipped. When it cannot recognise the `url_generator` line — a function call, an expression with commas, or the line removed — it refuses to guess and prints the one-line manual edit instead. Under `--no-interaction` it publishes everything, prints the env block, and touches neither `.env` nor the database.
+- `Thecyrilcril\ImageKit\Support\EnvFile`, the append-only dotenv writer behind the command. It adds `KEY=value` lines, never edits existing ones, and rejects any value containing a newline or control character.
+
+### Fixed
+
+- **Fresh apps no longer crash on `migrate`.** The package's `add_imagekit_pending_deletion_to_media_table` migration is dated before any `create_media_table` migration published today, so on a new app it ran first and failed on the missing table. It now does nothing until the `media` table exists and skips when the column is already present; `imagekit:install` also publishes a copy timestamped one second after the published table migration, so the column lands in the right order. Apps that already ran the vendor copy are unaffected.
+
+## v0.4.1
+
+### Fixed
+
+- Use PHP 8.3-compatible syntax in the converter.
+- Conversion tests skip honestly on a minimal ImageMagick build and cover `ConversionFailed` and magic-byte detection without needing HEIC support.
+
+## v0.4.0
+
+### Added
+
+- **Convert HEIC, WebP and AVIF to JPEG with EXIF intact.** `ConvertsImages::toJpeg()` uses Imagick, detects the format by magic bytes, returns JPEG input byte for byte, and returns the input unchanged where the environment cannot convert. `supported()` does a trial decode of a real sample.
+
 ## v0.3.1
 
 ### Changed
