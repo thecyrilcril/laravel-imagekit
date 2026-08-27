@@ -2,6 +2,16 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.5.1
+
+### Fixed
+
+- **`imagekit:reconcile` now finds files inside sub-folders.** ImageKit's `path` filter lists one folder level only, and uploads land at `{root}/{collection}/{file}`, so a run scoped to the root inspected zero files and reported "no orphans" on every real install. The command now walks every sub-folder under the scope.
+
+### Changed
+
+- README: install with `composer require -W` (the ImageKit SDK pins Guzzle 7, fresh Laravel apps lock Guzzle 8), run a worker on the `imagekit` queue, and register a media-library conversion to use a named preset.
+
 ## v0.5.0
 
 ### Added
