@@ -84,52 +84,73 @@ final class ReconcileCommand extends Command
 
         $orphans = [];
         $inspected = 0;
-        $skip = 0;
 
-        do {
-            $parameters = ['limit' => $chunk, 'skip' => $skip];
+        // ImageKit's `path` filter lists one folder level only, and uploads
+        // land at {root}/{collection}/{file}, so the root itself holds nothing
+        // but folders. Walk them. An unscoped listing (no path) is already
+        // recursive, so it is a single walk of one null "folder".
+        $pending = [$scope];
 
-            if ($scope !== null) {
-                $parameters['path'] = $scope;
-            }
+        while ($pending !== []) {
+            $folder = array_shift($pending);
+            $skip = 0;
 
-            $response = $sdk->listFiles($parameters);
+            do {
+                $parameters = ['limit' => $chunk, 'skip' => $skip];
 
-            if (($response->error ?? null) !== null) {
-                $this->components->error('ImageKit rejected the listing request: '
-                    .($response->error->message ?? 'unknown error'));
-
-                return self::FAILURE;
-            }
-
-            // The SDK types `result` as object|null, but the listing endpoint
-            // genuinely returns a JSON array which json_decode gives back as a
-            // PHP array. Normalising through (array) keeps that honest without
-            // suppressing the type mismatch.
-            /** @var list<object> $files */
-            $files = array_values((array) ($response->result ?? []));
-
-            foreach ($files as $file) {
-                $inspected++;
-
-                $path = isset($file->filePath) ? (string) $file->filePath : '';
-                $fileId = isset($file->fileId) ? (string) $file->fileId : '';
-
-                if ($path === '' || $fileId === '' || $known->contains($path)) {
-                    continue;
+                if ($folder !== null) {
+                    $parameters['path'] = $folder;
+                    $parameters['includeFolder'] = 'true';
                 }
 
-                // Belt and braces: even if ImageKit's listing returned a file
-                // from outside the root, it is not ours to report or delete.
-                if ($root !== '' && ! str_starts_with($path, '/'.$root.'/')) {
-                    continue;
+                $response = $sdk->listFiles($parameters);
+
+                if (($response->error ?? null) !== null) {
+                    $this->components->error('ImageKit rejected the listing request: '
+                        .($response->error->message ?? 'unknown error'));
+
+                    return self::FAILURE;
                 }
 
-                $orphans[] = ['path' => $path, 'fileId' => $fileId];
-            }
+                // The SDK types `result` as object|null, but the listing endpoint
+                // genuinely returns a JSON array which json_decode gives back as a
+                // PHP array. Normalising through (array) keeps that honest without
+                // suppressing the type mismatch.
+                /** @var list<object> $entries */
+                $entries = array_values((array) ($response->result ?? []));
 
-            $skip += $chunk;
-        } while (count($files) === $chunk);
+                foreach ($entries as $entry) {
+                    if (($entry->type ?? null) === 'folder') {
+                        $folderPath = isset($entry->folderPath) ? (string) $entry->folderPath : '';
+
+                        if ($folderPath !== '') {
+                            $pending[] = $folderPath;
+                        }
+
+                        continue;
+                    }
+
+                    $inspected++;
+
+                    $path = isset($entry->filePath) ? (string) $entry->filePath : '';
+                    $fileId = isset($entry->fileId) ? (string) $entry->fileId : '';
+
+                    if ($path === '' || $fileId === '' || $known->contains($path)) {
+                        continue;
+                    }
+
+                    // Belt and braces: even if ImageKit's listing returned a file
+                    // from outside the root, it is not ours to report or delete.
+                    if ($root !== '' && ! str_starts_with($path, '/'.$root.'/')) {
+                        continue;
+                    }
+
+                    $orphans[] = ['path' => $path, 'fileId' => $fileId];
+                }
+
+                $skip += $chunk;
+            } while (count($entries) === $chunk);
+        }
 
         return $this->report($inspected, $orphans, $shouldDelete, $remover);
     }

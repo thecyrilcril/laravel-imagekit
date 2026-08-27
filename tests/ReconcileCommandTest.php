@@ -121,14 +121,14 @@ it('pages through the listing until a short page arrives', function (): void {
     attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 2, 'skip' => 0, 'path' => '/uploads'])
+        ->with(['limit' => 2, 'skip' => 0, 'path' => '/uploads', 'includeFolder' => 'true'])
         ->andReturn(listingReturns([
             ['fileId' => 'f1', 'filePath' => '/uploads/known/a.jpg'],
             ['fileId' => 'f2', 'filePath' => '/uploads/page-one/b.jpg'],
         ]));
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 2, 'skip' => 2, 'path' => '/uploads'])
+        ->with(['limit' => 2, 'skip' => 2, 'path' => '/uploads', 'includeFolder' => 'true'])
         ->andReturn(listingReturns([
             ['fileId' => 'f3', 'filePath' => '/uploads/page-two/c.jpg'],
         ]));
@@ -138,11 +138,47 @@ it('pages through the listing until a short page arrives', function (): void {
         ->assertSuccessful();
 });
 
+it('walks into sub-folders, because ImageKit only lists one folder level per path', function (): void {
+    attachWithRemotePath($this->model, '/uploads/avatars/known.jpg');
+
+    // The root itself holds no files, only folders — the shape every real
+    // install has, since uploads land at {root}/{collection}/{file}.
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads', 'includeFolder' => 'true'])
+        ->andReturn(listingReturns([
+            ['type' => 'folder', 'folderPath' => '/uploads/avatars'],
+            ['type' => 'folder', 'folderPath' => '/uploads/documents'],
+        ]));
+
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/avatars', 'includeFolder' => 'true'])
+        ->andReturn(listingReturns([
+            ['type' => 'file', 'fileId' => 'f1', 'filePath' => '/uploads/avatars/known.jpg'],
+            ['type' => 'folder', 'folderPath' => '/uploads/avatars/nested'],
+        ]));
+
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/avatars/nested', 'includeFolder' => 'true'])
+        ->andReturn(listingReturns([
+            ['type' => 'file', 'fileId' => 'o1', 'filePath' => '/uploads/avatars/nested/orphan.jpg'],
+        ]));
+
+    $this->sdk->shouldReceive('listFiles')->once()
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/documents', 'includeFolder' => 'true'])
+        ->andReturn(listingReturns([]));
+
+    $this->artisan('imagekit:reconcile')
+        ->expectsOutputToContain('Files inspected on ImageKit: 2')
+        ->expectsOutputToContain('/uploads/avatars/nested/orphan.jpg')
+        ->doesntExpectOutputToContain('/uploads/avatars/known.jpg')
+        ->assertSuccessful();
+});
+
 it('scopes the listing to a folder when asked', function (): void {
     attachWithRemotePath($this->model, '/uploads/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/avatars'])
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/uploads/avatars', 'includeFolder' => 'true'])
         ->andReturn(listingReturns([]));
 
     $this->artisan('imagekit:reconcile', ['--folder' => 'avatars'])
@@ -155,7 +191,7 @@ it('always scopes the listing to the configured root folder', function (): void 
     attachWithRemotePath($this->model, '/kitwire/known/a.jpg');
 
     $this->sdk->shouldReceive('listFiles')->once()
-        ->with(['limit' => 100, 'skip' => 0, 'path' => '/kitwire'])
+        ->with(['limit' => 100, 'skip' => 0, 'path' => '/kitwire', 'includeFolder' => 'true'])
         ->andReturn(listingReturns([]));
 
     $this->artisan('imagekit:reconcile')

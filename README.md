@@ -15,9 +15,11 @@ One setting, `await`, decides when the upload happens:
 ## Installation
 
 ```bash
-composer require thecyrilcril/laravel-imagekit
+composer require thecyrilcril/laravel-imagekit -W
 php artisan imagekit:install
 ```
+
+`-W` lets Composer move Guzzle from 8 to 7. The ImageKit SDK needs Guzzle 7, and Laravel accepts both.
 
 The command does the whole setup:
 
@@ -106,10 +108,34 @@ That is the whole integration. Uploading, compressing, serving CDN URLs and dele
 ```php
 $user->addMedia($request->file('photo'))->toMediaCollection('avatar');
 
-$user->getUrl('avatar'); // or getUrl() for the 'default' preset
+$user->getFirstMediaUrl('avatar'); // same as $media->getUrl(): the 'default' preset
 ```
 
 With `await: false` (the default) the upload is queued. `getUrl()` returns the local URL until the job finishes, usually a few seconds. After that it returns the CDN URL. The same call always returns the URL that is correct right now.
+
+The package's jobs run on the `imagekit` queue (`imagekit.queue.name`). Make sure a worker listens to it:
+
+```bash
+php artisan queue:work --queue=default,imagekit
+```
+
+### 3. Serve a preset
+
+A preset is picked by media-library's conversion name. Register a conversion with the preset's name, then ask for it:
+
+```php
+public function registerMediaConversions(?Media $media = null): void
+{
+    $this->addMediaConversion('avatar')->performOnCollections('avatar');
+}
+```
+
+```php
+$user->getFirstMediaUrl('avatar', 'avatar'); // same as $media->getUrl('avatar')
+// https://ik.imagekit.io/<id>/tr:w-200,h-200,fo-face,q-85,f-auto/my-app/avatar/photo.jpg
+```
+
+Media-library still generates its own local copy of the conversion. ImageKit does not use it.
 
 ### API apps: `await: true`
 
