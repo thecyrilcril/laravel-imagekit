@@ -2,7 +2,7 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
-## Unreleased
+## v0.5.0
 
 ### Added
 
@@ -12,6 +12,19 @@ All notable changes to `laravel-imagekit` will be documented in this file.
 ### Fixed
 
 - **Fresh apps no longer crash on `migrate`.** The package's `add_imagekit_pending_deletion_to_media_table` migration is dated before any `create_media_table` migration published today, so on a new app it ran first and failed on the missing table. It now does nothing until the `media` table exists and skips when the column is already present; `imagekit:install` also publishes a copy timestamped one second after the published table migration, so the column lands in the right order. Apps that already ran the vendor copy are unaffected.
+
+## v0.4.1
+
+### Fixed
+
+- Use PHP 8.3-compatible syntax in the converter.
+- Conversion tests skip honestly on a minimal ImageMagick build and cover `ConversionFailed` and magic-byte detection without needing HEIC support.
+
+## v0.4.0
+
+### Added
+
+- **Convert HEIC, WebP and AVIF to JPEG with EXIF intact.** `ConvertsImages::toJpeg()` uses Imagick, detects the format by magic bytes, returns JPEG input byte for byte, and returns the input unchanged where the environment cannot convert. `supported()` does a trial decode of a real sample.
 
 ## v0.3.1
 
