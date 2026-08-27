@@ -12,6 +12,7 @@ use Intervention\Image\ImageManager;
 use Override;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Thecyrilcril\ImageKit\Commands\InstallCommand;
 use Thecyrilcril\ImageKit\Commands\ReconcileCommand;
 use Thecyrilcril\ImageKit\Compression\ImagickImageConverter;
 use Thecyrilcril\ImageKit\Compression\LaravelImageCompressor;
@@ -92,7 +93,7 @@ final class ImageKitServiceProvider extends ServiceProvider
                 __DIR__.'/../config/imagekit.php' => config_path('imagekit.php'),
             ], 'imagekit-config');
 
-            $this->commands([ReconcileCommand::class]);
+            $this->commands([InstallCommand::class, ReconcileCommand::class]);
         }
 
         RegistersImageKitCollections::register();
