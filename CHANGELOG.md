@@ -2,6 +2,12 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.6.1
+
+### Fixed
+
+- **`PushFileToImageKit` no longer re-uploads a row that already has `imagekit.file_id`.** The README hybrid pattern (`addMedia()` on an `await: false` profile, then `uploadNow()` in the same request) and the outage retry (a failed `uploadNow()` queues its own retry next to the original job) both left two queued paths pointing at one media row. Both uploaded, and the first remote file became an orphan with no row pointing at it. The job now returns early when the row already carries a `file_id`, the same guard `ImageKit::backfill()` has always used, so either scenario ends with exactly one remote file and `imagekit:reconcile` reports no orphan. The skip is silent: it is the expected path, not an error. A deliberate re-push of new bytes to the same row is not covered; that needs an explicit flag and is out of scope here ([#18](https://github.com/thecyrilcril/laravel-imagekit/issues/18)).
+
 ## v0.6.0
 
 ### Changed
