@@ -14,8 +14,15 @@ jobs:
       matrix:
         php: ['8.3', '8.4', '8.5']
         laravel: ['12.*', '13.*']
+        guzzle: ['^7.8', '^8.0']
+        # laravel/framework 12.x requires guzzlehttp/guzzle ^7.8.2 only, so a
+        # Guzzle 8 pin cannot resolve there. Laravel 13 allows ^7.8.2 || ^8.0,
+        # so it runs on both.
+        exclude:
+          - laravel: '12.*'
+            guzzle: '^8.0'
 
-    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} / Guzzle ${{ matrix.guzzle }}
 
     steps:
       - name: Checkout code
@@ -33,7 +40,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "illuminate/support:${{ matrix.laravel }}" --no-interaction --no-update
+          composer require "illuminate/support:${{ matrix.laravel }}" "guzzlehttp/guzzle:${{ matrix.guzzle }}" --no-interaction --no-update
           composer update --prefer-dist --no-interaction
 
       # The 100% coverage gate only holds where every file can execute.
