@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit\Data;
 
+use Thecyrilcril\ImageKitClient\Files\UploadRequest;
+use Thecyrilcril\ImageKitClient\Files\UploadSource;
+
 final readonly class UploadOptions
 {
     /**
@@ -17,23 +20,18 @@ final readonly class UploadOptions
     ) {}
 
     /**
-     * @return array<string, mixed>
+     * The Client request for these options, carrying the bytes as-is. An
+     * empty folder or tag list stays off the wire, so ImageKit applies its
+     * own default rather than an empty value.
      */
-    public function toArray(): array
+    public function toUploadRequest(string $contents): UploadRequest
     {
-        $options = [
-            'fileName' => $this->fileName,
-            'useUniqueFileName' => $this->useUniqueFileName,
-        ];
-
-        if ($this->folder !== null && $this->folder !== '') {
-            $options['folder'] = $this->folder;
-        }
-
-        if ($this->tags !== []) {
-            $options['tags'] = $this->tags;
-        }
-
-        return $options;
+        return new UploadRequest(
+            source: UploadSource::bytes($contents),
+            fileName: $this->fileName,
+            useUniqueFileName: $this->useUniqueFileName,
+            folder: $this->folder === null || $this->folder === '' ? null : $this->folder,
+            tags: $this->tags === [] ? null : $this->tags,
+        );
     }
 }

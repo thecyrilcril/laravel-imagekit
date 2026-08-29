@@ -6,10 +6,14 @@ namespace Thecyrilcril\ImageKit\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
-use ImageKit\ImageKit as Sdk;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
 use Thecyrilcril\ImageKit\Support\MediaModel;
+use Thecyrilcril\ImageKitClient\Contracts\Files;
+use Thecyrilcril\ImageKitClient\Enums\AssetType;
+use Thecyrilcril\ImageKitClient\Exceptions\ImageKitClientException;
+use Thecyrilcril\ImageKitClient\Files\Folder;
+use Thecyrilcril\ImageKitClient\Files\ListRequest;
 
 /**
  * Finds files in ImageKit that no media row points at.
@@ -37,14 +41,14 @@ final class ReconcileCommand extends Command
     protected $signature = 'imagekit:reconcile
         {--folder= : Only inspect this sub-folder of the configured root folder}
         {--delete : Delete the orphans instead of only listing them}
-        {--chunk=100 : How many files to fetch from ImageKit per request}';
+        {--chunk=100 : How many files to fetch from ImageKit per request (at most '.ListRequest::MAX_LIMIT.')}';
 
     /** @var string */
     protected $description = 'Find ImageKit files that no media row references';
 
-    public function handle(Sdk $sdk, DeletesRemoteFiles $remover): int
+    public function handle(Files $files, DeletesRemoteFiles $remover): int
     {
-        $chunk = max(1, (int) $this->option('chunk'));
+        $chunk = max(1, min(ListRequest::MAX_LIMIT, (int) $this->option('chunk')));
         $shouldDelete = (bool) $this->option('delete');
 
         $root = FolderResolver::root();
@@ -91,68 +95,54 @@ final class ReconcileCommand extends Command
         // recursive, so it is a single walk of one null "folder".
         $pending = [$scope];
 
-        while ($pending !== []) {
-            $folder = array_shift($pending);
-            $skip = 0;
+        try {
+            while ($pending !== []) {
+                $folder = array_shift($pending);
 
-            do {
-                $parameters = ['limit' => $chunk, 'skip' => $skip];
-
-                if ($folder !== null) {
-                    $parameters['path'] = $folder;
-                    $parameters['includeFolder'] = 'true';
-                }
-
-                $response = $sdk->listFiles($parameters);
-
-                if (($response->error ?? null) !== null) {
-                    $this->components->error('ImageKit rejected the listing request: '
-                        .($response->error->message ?? 'unknown error'));
-
-                    return self::FAILURE;
-                }
-
-                // The SDK types `result` as object|null, but the listing endpoint
-                // genuinely returns a JSON array which json_decode gives back as a
-                // PHP array. Normalising through (array) keeps that honest without
-                // suppressing the type mismatch.
-                /** @var list<object> $entries */
-                $entries = array_values((array) ($response->result ?? []));
-
-                foreach ($entries as $entry) {
-                    if (($entry->type ?? null) === 'folder') {
-                        $folderPath = isset($entry->folderPath) ? (string) $entry->folderPath : '';
-
-                        if ($folderPath !== '') {
-                            $pending[] = $folderPath;
-                        }
+                foreach ($files->lazy($this->listing($folder, $chunk)) as $entry) {
+                    if ($entry instanceof Folder) {
+                        $pending[] = $entry->folderPath;
 
                         continue;
                     }
 
                     $inspected++;
 
-                    $path = isset($entry->filePath) ? (string) $entry->filePath : '';
-                    $fileId = isset($entry->fileId) ? (string) $entry->fileId : '';
-
-                    if ($path === '' || $fileId === '' || $known->contains($path)) {
+                    if ($known->contains($entry->filePath)) {
                         continue;
                     }
 
                     // Belt and braces: even if ImageKit's listing returned a file
                     // from outside the root, it is not ours to report or delete.
-                    if ($root !== '' && ! str_starts_with($path, '/'.$root.'/')) {
+                    if ($root !== '' && ! str_starts_with($entry->filePath, '/'.$root.'/')) {
                         continue;
                     }
 
-                    $orphans[] = ['path' => $path, 'fileId' => $fileId];
+                    $orphans[] = ['path' => $entry->filePath, 'fileId' => $entry->fileId];
                 }
+            }
+        } catch (ImageKitClientException $exception) {
+            // The lazy listing sends each page as it is reached, so a
+            // rejection surfaces here, mid-walk, rather than from lazy().
+            $this->components->error('Could not list files on ImageKit: '.$exception->getMessage());
 
-                $skip += $chunk;
-            } while (count($entries) === $chunk);
+            return self::FAILURE;
         }
 
         return $this->report($inspected, $orphans, $shouldDelete, $remover);
+    }
+
+    /**
+     * One folder level, folders included, so the walk can descend; or, with
+     * no folder, every file on the account in one recursive listing.
+     */
+    private function listing(?string $folder, int $chunk): ListRequest
+    {
+        if ($folder === null) {
+            return new ListRequest(limit: $chunk);
+        }
+
+        return new ListRequest(limit: $chunk, path: $folder, type: AssetType::All);
     }
 
     /**

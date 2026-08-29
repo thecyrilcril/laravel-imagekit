@@ -30,6 +30,7 @@ beforeEach(function (): void {
 afterEach(function (): void {
     File::delete([
         config_path('imagekit.php'),
+        config_path('imagekit-client.php'),
         config_path('media-library.php'),
         $this->env,
         ...File::glob(database_path('migrations/*.php')),
@@ -63,6 +64,7 @@ it('sets up a fresh app end to end', function (): void {
         ->assertSuccessful();
 
     expect(File::exists(config_path('imagekit.php')))->toBeTrue()
+        ->and(File::exists(config_path('imagekit-client.php')))->toBeTrue()
         ->and(mediaLibraryConfig())->toContain("'url_generator' => \\Thecyrilcril\\ImageKit\\ImageKitUrlBuilder::class,")
         ->and(File::get($this->env))->toBe(
             "APP_NAME=Laravel\nIMAGEKIT_PUBLIC_KEY=pub\nIMAGEKIT_PRIVATE_KEY=priv\n"
@@ -180,6 +182,7 @@ it('publishes everything, prints the env block and touches nothing else when non
         ->assertSuccessful();
 
     expect(File::exists(config_path('imagekit.php')))->toBeTrue()
+        ->and(File::exists(config_path('imagekit-client.php')))->toBeTrue()
         ->and(File::exists(config_path('media-library.php')))->toBeTrue()
         ->and(File::glob(database_path('migrations/*.php')))->toHaveCount(2)
         ->and(File::get($this->env))->toBe("APP_NAME=Laravel\n")

@@ -14,6 +14,7 @@ use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Tests\Fixtures\TestModel;
+use Thecyrilcril\ImageKitClient\Exceptions\RequestFailed;
 
 beforeEach(function (): void {
     Storage::fake('public');
@@ -91,7 +92,7 @@ it('keeps the file and queues a retry when an awaited upload fails', function ()
     ]);
 
     $uploader = Mockery::mock(UploadsFiles::class);
-    $uploader->shouldReceive('upload')->andThrow(UploadFailed::fromResponse('a.jpg', 'ImageKit down'));
+    $uploader->shouldReceive('upload')->andThrow(UploadFailed::fromClientException('a.jpg', new RequestFailed(503, 'ImageKit down', null)));
     $this->app->instance(UploadsFiles::class, $uploader);
 
     $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))

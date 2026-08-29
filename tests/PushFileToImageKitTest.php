@@ -18,6 +18,7 @@ use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Thecyrilcril\ImageKit\Tests\Fixtures\TestModel;
+use Thecyrilcril\ImageKitClient\Exceptions\RequestFailed;
 
 beforeEach(function (): void {
     Storage::fake('public');
@@ -104,7 +105,7 @@ it('fires FileUploadFailed and rethrows when the upload fails', function (): voi
     $media = attachImage($this->model);
 
     $uploader = Mockery::mock(UploadsFiles::class);
-    $uploader->shouldReceive('upload')->andThrow(UploadFailed::fromResponse('p.jpg', 'boom'));
+    $uploader->shouldReceive('upload')->andThrow(UploadFailed::fromClientException('p.jpg', new RequestFailed(500, 'boom', null)));
     $this->app->instance(UploadsFiles::class, $uploader);
 
     try {

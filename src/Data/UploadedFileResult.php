@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit\Data;
 
+use Thecyrilcril\ImageKitClient\Files\UploadedFile;
+
 final readonly class UploadedFileResult
 {
     public function __construct(
@@ -18,23 +20,20 @@ final readonly class UploadedFileResult
     ) {}
 
     /**
-     * Map the SDK's untyped stdClass exactly once, so no other class
-     * needs a PHPStan suppression for its dynamic properties.
+     * The subset of the Client's upload response this package stores and
+     * hands to its events, under the names its consumers already use.
      */
-    public static function fromResponse(object $result): self
+    public static function fromUploadedFile(UploadedFile $file): self
     {
-        /** @var array<string, mixed> $data */
-        $data = (array) $result;
-
         return new self(
-            fileId: (string) ($data['fileId'] ?? ''),
-            path: (string) ($data['filePath'] ?? ''),
-            url: (string) ($data['url'] ?? ''),
-            name: (string) ($data['name'] ?? ''),
-            size: (int) ($data['size'] ?? 0),
-            width: isset($data['width']) ? (int) $data['width'] : null,
-            height: isset($data['height']) ? (int) $data['height'] : null,
-            thumbnailUrl: isset($data['thumbnailUrl']) ? (string) $data['thumbnailUrl'] : null,
+            fileId: $file->fileId,
+            path: $file->filePath,
+            url: $file->url,
+            name: $file->name,
+            size: $file->size,
+            width: $file->width,
+            height: $file->height,
+            thumbnailUrl: $file->thumbnailUrl,
         );
     }
 }

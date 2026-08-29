@@ -49,9 +49,9 @@ abstract class TestCase extends Orchestra
         $config->set('cache.default', 'array');
         $config->set('queue.default', 'sync');
 
-        $config->set('imagekit.public_key', 'public_test');
-        $config->set('imagekit.private_key', 'private_test');
-        $config->set('imagekit.url_endpoint', 'https://ik.imagekit.io/test');
+        $config->set('imagekit-client.public_key', 'public_test');
+        $config->set('imagekit-client.private_key', 'private_test');
+        $config->set('imagekit-client.url_endpoint', 'https://ik.imagekit.io/test');
     }
 
     protected function defineDatabaseMigrations(): void
