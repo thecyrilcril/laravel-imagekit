@@ -87,6 +87,16 @@ final class PushFileToImageKit implements ShouldQueue
 
     private function push(Media $media): void
     {
+        // Same guard as ImageKitManager::backfill(). The README hybrid
+        // pattern (addMedia() on an await:false profile, then uploadNow())
+        // and the outage retry both leave a second job pointing at a row
+        // that another path already pushed. Uploading again would orphan
+        // the first remote file, so a row that already serves from ImageKit
+        // is left alone. This is the expected path, not an error: no log.
+        if ($media->getCustomProperty('imagekit.file_id') !== null) {
+            return;
+        }
+
         $profiles = app(ProfileRepository::class);
         $profile = $profiles->profile($this->profile);
 
