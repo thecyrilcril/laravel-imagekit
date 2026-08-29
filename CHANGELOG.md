@@ -2,6 +2,25 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.6.0
+
+### Changed
+
+- **The official `imagekit/imagekit` SDK is gone; the package now depends on [`thecyrilcril/imagekit-laravel-client`](https://github.com/thecyrilcril/imagekit-laravel-client) `^0.1`.** The SDK pinned Guzzle `~6 || ~7`, so a fresh Laravel 13 app (Guzzle 8) could only install this package with `composer require -W`, which downgraded Guzzle for the whole app. The Client is built on Laravel's `Http` client and has no Guzzle pin: `composer require thecyrilcril/laravel-imagekit` now installs cleanly on Laravel 12 (Guzzle 7) and Laravel 13 (Guzzle 8) with no flags. Why a replacement and not a fork: [ADR-0001](docs/adr/0001-laravel-http-client-replaces-imagekit-sdk.md).
+- **Credentials moved to the Client's config.** `public_key`, `private_key` and `url_endpoint` are read from `config/imagekit-client.php`, not `config/imagekit.php`. The env keys are unchanged (`IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, `IMAGEKIT_URL_ENDPOINT`), so an app that sets them in `.env` needs only `php artisan vendor:publish --tag=imagekit-client-config`. `imagekit:install` publishes both files. The old keys in a published `config/imagekit.php` are ignored.
+- **Uploads send raw bytes as a multipart file part** instead of a base64 data URI, so a request holds one copy of the file rather than a copy plus a third-larger encoding.
+- **An unknown preset key now throws.** The Client's URL builder rejects a transformation key it does not know with `Thecyrilcril\ImageKitClient\Exceptions\InvalidTransformation`; the SDK used to pass typos into the URL as-is. Preset keys are the Client's aliases (`width`, `focus`, …) or ImageKit short codes (`w`, `fo`, …).
+- `imagekit:reconcile`, the uploader and the file remover read typed results and catch typed exceptions; a delete of a file ImageKit no longer has counts as done.
+- CI now proves Guzzle `^7.8` and `^8.0` on every PHP × Laravel leg (Laravel 12 × Guzzle 8 is excluded: Laravel 12 pins Guzzle `^7.8.2`).
+
+### Unchanged
+
+- The `ImageKitClient` contract, the `ImageKit` facade, `ImageKit::fake()` and its assertions, `uploadNow()` returning `null` on any failure, profiles, presets, queue and folder config, and every URL this package emits (transformations stay in the path; [ADR-0002](docs/adr/0002-transformations-in-url-path.md)).
+
+### Verified
+
+- Live in the test app on Guzzle 8.1.0: 3000×2000 PNG upload with `await: true` served HTTP 200; the `avatar` preset URL carries `w-200,h-200,fo-face` and renders 200×200; single-file replacement removes the old remote file after `queue:work --queue=imagekit`; `imagekit:reconcile` inspects the folder and finds the orphan after a raw row delete; with `api.imagekit.io` blocked, `uploadNow()` returns `null`, logs once and queues a retry. Evidence on [PR #17](https://github.com/thecyrilcril/laravel-imagekit/pull/17).
+
 ## v0.5.1
 
 ### Fixed

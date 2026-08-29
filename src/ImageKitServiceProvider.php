@@ -7,7 +7,6 @@ namespace Thecyrilcril\ImageKit;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Image;
 use Illuminate\Support\ServiceProvider;
-use ImageKit\ImageKit as Sdk;
 use Intervention\Image\ImageManager;
 use Override;
 use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
@@ -29,6 +28,7 @@ use Thecyrilcril\ImageKit\Listeners\MediaAddedListener;
 use Thecyrilcril\ImageKit\Observers\MediaObserver;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 use Thecyrilcril\ImageKit\Support\UrlFactory;
+use Thecyrilcril\ImageKitClient\ImageKitClientServiceProvider;
 
 final class ImageKitServiceProvider extends ServiceProvider
 {
@@ -36,6 +36,11 @@ final class ImageKitServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/imagekit.php', 'imagekit');
+
+        // The Client owns credentials, HTTP and URL building. Registering its
+        // provider here means the package works even where package discovery
+        // is off; register() is a no-op when discovery already did it.
+        $this->app->register(ImageKitClientServiceProvider::class);
 
         $this->app->singleton(CompressesImages::class, function (): CompressesImages {
             return $this->compressionAvailable()
@@ -57,14 +62,6 @@ final class ImageKitServiceProvider extends ServiceProvider
             return extension_loaded('imagick')
                 ? new ImagickImageConverter
                 : new NullImageConverter;
-        });
-
-        $this->app->singleton(Sdk::class, function (): Sdk {
-            return new Sdk(
-                (string) config('imagekit.public_key'),
-                (string) config('imagekit.private_key'),
-                (string) config('imagekit.url_endpoint'),
-            );
         });
 
         $this->app->singleton(UploadsFiles::class, ImageKitUploader::class);

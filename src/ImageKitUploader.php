@@ -4,16 +4,22 @@ declare(strict_types=1);
 
 namespace Thecyrilcril\ImageKit;
 
-use ImageKit\ImageKit as Sdk;
 use Override;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
 use Thecyrilcril\ImageKit\Exceptions\UploadFailed;
+use Thecyrilcril\ImageKitClient\Contracts\Files;
+use Thecyrilcril\ImageKitClient\Exceptions\ImageKitClientException;
 
+/**
+ * Sends the bytes to ImageKit through the Client as a multipart file part.
+ * Nothing is base64-encoded on the way, so the request holds one copy of the
+ * file, not a copy and a third-larger encoding of it.
+ */
 final readonly class ImageKitUploader implements UploadsFiles
 {
-    public function __construct(private Sdk $sdk) {}
+    public function __construct(private Files $files) {}
 
     #[Override]
     public function upload(string $contents, UploadOptions $options): UploadedFileResult
@@ -22,51 +28,17 @@ final readonly class ImageKitUploader implements UploadsFiles
             throw UploadFailed::emptyContents($options->fileName);
         }
 
-        $response = $this->sdk->uploadFile([
-            ...$options->toArray(),
-            'file' => $this->toDataUri($contents, $options->fileName),
-        ]);
+        // Built outside the try on purpose: a request the Client refuses to
+        // build (an empty file name, say) is a caller bug, not an upload that
+        // failed, and must not be reported as one.
+        $request = $options->toUploadRequest($contents);
 
-        // The SDK never throws: it returns an object carrying ->error.
-        if (null !== ($response->error ?? null)) {
-            $message = $response->error->message ?? null;
-
-            throw UploadFailed::fromResponse(
-                $options->fileName,
-                is_string($message) ? $message : null,
-            );
+        try {
+            $uploaded = $this->files->upload($request);
+        } catch (ImageKitClientException $exception) {
+            throw UploadFailed::fromClientException($options->fileName, $exception);
         }
 
-        $result = $response->result ?? null;
-
-        if (! is_object($result)) {
-            throw UploadFailed::fromResponse($options->fileName, 'the response contained no result');
-        }
-
-        return UploadedFileResult::fromResponse($result);
-    }
-
-    private function toDataUri(string $contents, string $fileName): string
-    {
-        $mime = $this->guessMimeFromName($fileName);
-
-        return sprintf('data:%s;base64,%s', $mime, base64_encode($contents));
-    }
-
-    private function guessMimeFromName(string $fileName): string
-    {
-        $extension = mb_strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-
-        return match ($extension) {
-            'jpg', 'jpeg' => 'image/jpeg',
-            'png' => 'image/png',
-            'gif' => 'image/gif',
-            'webp' => 'image/webp',
-            'avif' => 'image/avif',
-            'svg' => 'image/svg+xml',
-            'pdf' => 'application/pdf',
-            'mp4' => 'video/mp4',
-            default => 'application/octet-stream',
-        };
+        return UploadedFileResult::fromUploadedFile($uploaded);
     }
 }

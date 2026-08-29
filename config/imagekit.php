@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
+// Credentials (IMAGEKIT_PUBLIC_KEY, IMAGEKIT_PRIVATE_KEY, IMAGEKIT_URL_ENDPOINT)
+// and HTTP settings live in the Client's config, config/imagekit-client.php.
+// `php artisan imagekit:install` publishes this file and the Client's.
 return [
-    'public_key' => env('IMAGEKIT_PUBLIC_KEY'),
-    'private_key' => env('IMAGEKIT_PRIVATE_KEY'),
-    'url_endpoint' => env('IMAGEKIT_URL_ENDPOINT'),
-
     'queue' => [
         'connection' => env('IMAGEKIT_QUEUE_CONNECTION'),
         'name' => env('IMAGEKIT_QUEUE', 'imagekit'),
@@ -25,7 +24,8 @@ return [
         'document' => ['compress' => false, 'await' => false],
     ],
 
-    // Delivery-time transformations: what we SERVE.
+    // Delivery-time transformations: what we SERVE. Keys are the Client's
+    // aliases (width, focus, quality, ...) or ImageKit short codes (w, fo, q).
     'presets' => [
         'default' => ['quality' => 85, 'format' => 'auto'],
         'avatar' => ['width' => 200, 'height' => 200, 'focus' => 'face', 'quality' => 85, 'format' => 'auto'],

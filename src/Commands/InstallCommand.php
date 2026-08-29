@@ -15,7 +15,8 @@ use Thecyrilcril\ImageKit\Support\EnvFile;
  * One-step setup for this package and spatie/laravel-medialibrary.
  *
  * After `composer require` there are four things to do before the first
- * upload works: publish both configs, point media-library's `url_generator`
+ * upload works: publish the configs (this package's, the Client's that holds
+ * the credentials, and media-library's), point media-library's `url_generator`
  * at this package's builder, set the `IMAGEKIT_*` env keys, and migrate.
  * Each is a chance to stop halfway or mistype a key name. This command does
  * them in order, in one run.
@@ -54,6 +55,7 @@ final class InstallCommand extends Command
         $this->components->info('Publishing configuration and migrations.');
 
         $this->publish('imagekit-config', config_path('imagekit.php'));
+        $this->publish('imagekit-client-config', config_path('imagekit-client.php'));
         $this->publish('medialibrary-config', config_path('media-library.php'));
         $this->publish('medialibrary-migrations', $this->migrationPath('create_media_table'));
         $this->publishColumnMigration();

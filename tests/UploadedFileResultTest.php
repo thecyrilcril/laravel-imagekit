@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
+use Thecyrilcril\ImageKitClient\Enums\UploadSourceKind;
+use Thecyrilcril\ImageKitClient\Files\UploadedFile;
 
-it('maps a full SDK result object', function (): void {
-    $result = UploadedFileResult::fromResponse((object) [
-        'fileId' => 'file-123',
-        'filePath' => '/avatars/pic.jpg',
-        'url' => 'https://ik.imagekit.io/test/avatars/pic.jpg',
-        'name' => 'pic.jpg',
-        'size' => 45678,
-        'width' => 800,
-        'height' => 600,
-        'thumbnailUrl' => 'https://ik.imagekit.io/test/tr:n-thumb/avatars/pic.jpg',
-    ]);
+it('maps the Client\'s upload response', function (): void {
+    $result = UploadedFileResult::fromUploadedFile(new UploadedFile(
+        fileId: 'file-123',
+        name: 'pic.jpg',
+        filePath: '/avatars/pic.jpg',
+        url: 'https://ik.imagekit.io/test/avatars/pic.jpg',
+        fileType: 'image',
+        size: 45678,
+        thumbnailUrl: 'https://ik.imagekit.io/test/tr:n-thumb/avatars/pic.jpg',
+        width: 800,
+        height: 600,
+    ));
 
     expect($result->fileId)->toBe('file-123')
         ->and($result->path)->toBe('/avatars/pic.jpg')
@@ -28,40 +31,41 @@ it('maps a full SDK result object', function (): void {
 });
 
 it('tolerates a non-image result that omits dimensions and thumbnail', function (): void {
-    $result = UploadedFileResult::fromResponse((object) [
-        'fileId' => 'file-pdf',
-        'filePath' => '/docs/report.pdf',
-        'url' => 'https://ik.imagekit.io/test/docs/report.pdf',
-        'name' => 'report.pdf',
-        'size' => 91011,
-    ]);
+    $result = UploadedFileResult::fromUploadedFile(new UploadedFile(
+        fileId: 'file-pdf',
+        name: 'report.pdf',
+        filePath: '/docs/report.pdf',
+        url: 'https://ik.imagekit.io/test/docs/report.pdf',
+        fileType: 'non-image',
+        size: 91011,
+    ));
 
     expect($result->width)->toBeNull()
         ->and($result->height)->toBeNull()
         ->and($result->thumbnailUrl)->toBeNull();
 });
 
-it('builds SDK upload option keys', function (): void {
-    $options = new UploadOptions(
+it('builds a Client upload request from raw bytes', function (): void {
+    $request = (new UploadOptions(
         fileName: 'avatar-1.jpg',
         folder: 'avatars',
         tags: ['avatar', 'user'],
         useUniqueFileName: true,
-    );
+    ))->toUploadRequest('bytes');
 
-    expect($options->toArray())->toBe([
-        'fileName' => 'avatar-1.jpg',
-        'useUniqueFileName' => true,
-        'folder' => 'avatars',
-        'tags' => ['avatar', 'user'],
-    ]);
+    expect($request->source->kind)->toBe(UploadSourceKind::Bytes)
+        ->and($request->source->value)->toBe('bytes')
+        ->and($request->fileName)->toBe('avatar-1.jpg')
+        ->and($request->useUniqueFileName)->toBeTrue()
+        ->and($request->folder)->toBe('avatars')
+        ->and($request->tags)->toBe(['avatar', 'user']);
 });
 
-it('omits folder and tags when they are empty', function (): void {
-    $options = new UploadOptions(fileName: 'a.jpg', folder: null, tags: [], useUniqueFileName: false);
+it('leaves folder and tags off the request when they are empty', function (?string $folder): void {
+    $request = (new UploadOptions(fileName: 'a.jpg', folder: $folder, tags: [], useUniqueFileName: false))
+        ->toUploadRequest('bytes');
 
-    expect($options->toArray())->toBe([
-        'fileName' => 'a.jpg',
-        'useUniqueFileName' => false,
-    ]);
-});
+    expect($request->useUniqueFileName)->toBeFalse()
+        ->and($request->folder)->toBeNull()
+        ->and($request->tags)->toBeNull();
+})->with(['null folder' => [null], 'empty folder' => ['']]);
