@@ -15,15 +15,15 @@ One setting, `await`, decides when the upload happens:
 ## Installation
 
 ```bash
-composer require thecyrilcril/laravel-imagekit -W
+composer require thecyrilcril/laravel-imagekit
 php artisan imagekit:install
 ```
 
-`-W` lets Composer move Guzzle from 8 to 7. The ImageKit SDK needs Guzzle 7, and Laravel accepts both.
+Works on Laravel 12 and 13, Guzzle 7 or 8. No `-W`.
 
 The command does the whole setup:
 
-1. Publishes this package's config, and media-library's config and migration.
+1. Publishes this package's config, the Client's config (where the credentials live), and media-library's config and migration.
 2. Points media-library's `url_generator` at this package.
 3. Asks for your three ImageKit credentials and a root folder, and writes them to `.env`.
 4. Offers to run the migrations.
@@ -33,11 +33,14 @@ It is safe to run twice. It skips anything already done and tells you. With `--n
 <details>
 <summary>Manual installation</summary>
 
-1. Publish the config:
+1. Publish both configs:
 
    ```bash
    php artisan vendor:publish --tag=imagekit-config
+   php artisan vendor:publish --tag=imagekit-client-config
    ```
+
+   `config/imagekit-client.php` holds the credentials and HTTP settings. `config/imagekit.php` holds this package's folder, queue, profiles and presets.
 
 2. Add to `.env`:
 
@@ -68,6 +71,10 @@ It is safe to run twice. It skips anything already done and tells you. With `--n
    This package's own migration adds `imagekit_pending_deletion_at` to the `media` table. It waits until the `media` table exists. On a fresh app, run `migrate` a second time after the table is created.
 
 </details>
+
+### Dependencies
+
+This package talks to ImageKit through [`thecyrilcril/imagekit-laravel-client`](https://github.com/thecyrilcril/imagekit-laravel-client), a client built on Laravel's `Http` facade. It replaced the official `imagekit/imagekit` SDK in v0.6.0: the SDK pins Guzzle 7, Laravel 13 ships Guzzle 8, and upstream has not moved since 2024. The Client has no Guzzle pin, throws typed exceptions, and can be faked with `ImageKitClient::fake()`. Why this route and not a fork: [ADR-0001](docs/adr/0001-laravel-http-client-replaces-imagekit-sdk.md).
 
 ## Quick start
 
@@ -268,7 +275,7 @@ Profile keys:
 
 A profile is validated the first time it is used. A bad value throws `Thecyrilcril\ImageKit\Exceptions\InvalidProfile` with the profile and field name. Bad values are: `quality` outside 1–100, `max_edge` below 1, a non-string `format`, or a numeric string where an integer is expected (for example `'90'` from `env()`). Nothing is clamped or coerced. An unused profile never throws.
 
-Preset keys pass straight through to ImageKit's [transformation parameters](https://imagekit.io/docs/transformations).
+Preset keys are the Client's aliases for ImageKit's [transformation parameters](https://imagekit.io/docs/transformations) (`width`, `height`, `focus`, `quality`, `format`, `crop`, `blur`, `radius`, …), or the short codes themselves (`w`, `fo`, `q`). A key the Client does not know throws `Thecyrilcril\ImageKitClient\Exceptions\InvalidTransformation` when the URL is built, so a typo fails loudly instead of serving a broken image. Transformations go in the URL path (`/tr:w-200,h-200/…`); see [ADR-0002](docs/adr/0002-transformations-in-url-path.md).
 
 ## Compression
 
