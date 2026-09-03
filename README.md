@@ -9,8 +9,8 @@ One setting, `await`, decides when the upload happens:
 | App type | `await` | Why |
 |---|---|---|
 | Web app | `false` (queued) | The page re-renders later and picks up the CDN URL. |
-| API | `true` (synchronous) | The response is the only chance to return the final URL. |
-| Hybrid | `false`, then `uploadNow()` where needed | Most uploads queue; a few endpoints wait. |
+| API | `true` (awaited) | The response is the only chance to return the final URL. |
+| Hybrid | `false`, then `->await()` or `uploadNow()` where needed | Most uploads queue; a few calls wait. |
 
 ## Installation
 
@@ -186,7 +186,7 @@ $media = $request->user()
     ->toMediaCollection('avatar');
 ```
 
-**Read the URL with `getUrl()` on every response. Do not store it.** If a synchronous upload fails, the row keeps its local URL and a retry is queued. A stored URL goes stale when that retry succeeds.
+**Read the URL with `getUrl()` on every response. Do not store it.** If an awaited upload fails, the row keeps its local URL and a retry is queued. A stored URL goes stale when that retry succeeds.
 
 ### Hybrid apps: `uploadNow()`
 
@@ -219,11 +219,48 @@ if ($result === null) {
 }
 ```
 
+### Hybrid apps: `->await()`
+
+The shorter form of the same thing. Add `->await()` to the fluent chain and the upload happens before `toMediaCollection()` returns. The profile keeps `await: false`; nothing is queued for that row:
+
+```php
+public function store(Request $request): JsonResponse
+{
+    $media = $request->user()
+        ->addMedia($request->file('photo'))
+        ->await() // this one upload waits
+        ->toMediaCollection('avatar');
+
+    return response()->json([
+        'avatar_url' => $media->getUrl(),
+        'uploaded_now' => RegistersImageKitCollections::isReady($media->fresh()),
+    ]);
+}
+```
+
+`->await(false)` does the reverse: it forces the queue on an `await: true` profile. Without a `->await()` call the profile's value applies, so existing code is unchanged.
+
+When ImageKit is down, `->await()` fails the same way `uploadNow()` does above. It never throws for a transport failure. Read readiness with `Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections::isReady($media->fresh())`.
+
+`->await()` works on every entry point in the table below, because it is a macro on media-library's `FileAdder`. Two things to know:
+
+- **Call `withCustomProperties()` before `->await()`.** The override travels on the row as a custom property that the package strips before it uploads; `withCustomProperties()` replaces the whole array and would drop it. Your own `custom_properties` never see the flag.
+- **`->await()` on a collection without `->toImageKit()` throws** `Thecyrilcril\ImageKit\Exceptions\UnregisteredCollection`, so a missing registration fails on the first run instead of silently queuing nothing.
+
+The `uploadNow()` pattern above still works and is not deprecated. Use it when the decision to wait comes after the file is stored.
+
+**Static analysis.** Larastan reads registered macros, so `->await()` type-checks with no annotation. Plain PHPStan does not know the macro; add a one-line hint where you call it:
+
+```php
+/** @var \Spatie\MediaLibrary\MediaCollections\FileAdder $adder */
+$adder = $user->addMedia($file);
+```
+
 `await` is explicit on purpose. Queued jobs and console commands have no HTTP request to inspect, so auto-detection would fail exactly where it matters.
 
 ### Every upload method works
 
-The push to ImageKit is triggered by media creation. All media-library entry points behave the same:
+The push to ImageKit is triggered by media creation. All media-library entry points behave the same, and all of them accept `->await()`:
 
 | Method | Source |
 |---|---|
@@ -271,7 +308,7 @@ Profile keys:
 | `max_edge` | Longest side in pixels. Images are scaled down to this, never up. |
 | `quality` | Integer 1–100 for the encoder. Ignored for lossless formats such as PNG. |
 | `format` | Output format (`'jpg'`, `'png'`, `'webp'`, …), or `null` to keep the source format. Read [Footguns](#footguns) first. |
-| `await` | `false` queues the upload. `true` uploads synchronously. |
+| `await` | `false` queues the upload. `true` uploads before the storing call returns. `->await()` / `->await(false)` on the chain overrides it for one call. |
 
 A profile is validated the first time it is used. A bad value throws `Thecyrilcril\ImageKit\Exceptions\InvalidProfile` with the profile and field name. Bad values are: `quality` outside 1–100, `max_edge` below 1, a non-string `format`, or a numeric string where an integer is expected (for example `'90'` from `env()`). Nothing is clamped or coerced. An unused profile never throws.
 

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Spatie\MediaLibrary\MediaCollections\FileAdder;
+use Spatie\MediaLibrary\MediaCollections\MediaCollection;
 use Thecyrilcril\ImageKitClient\Contracts\Client;
 use Thecyrilcril\ImageKitClient\ImageKitClientServiceProvider;
 
@@ -23,4 +25,9 @@ it('carries no credential keys: those live in the Client\'s config', function ()
 it('registers the Client\'s service provider itself, so package discovery is not load-bearing', function (): void {
     expect($this->app->getProvider(ImageKitClientServiceProvider::class))->toBeInstanceOf(ImageKitClientServiceProvider::class)
         ->and(app(Client::class))->toBeInstanceOf(Client::class);
+});
+
+it('registers the toImageKit() and await() macros on media-library', function (): void {
+    expect(MediaCollection::hasMacro('toImageKit'))->toBeTrue()
+        ->and(FileAdder::hasMacro('await'))->toBeTrue();
 });

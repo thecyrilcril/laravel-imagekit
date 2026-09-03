@@ -2,6 +2,17 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## v0.7.0
+
+### Added
+
+- **Fluent `->await()` on the media-library chain.** `$user->addMedia($file)->await()->toMediaCollection('avatar')` uploads to ImageKit before `toMediaCollection()` returns, exactly as an `await: true` profile does, and queues nothing for that row. `->await(false)` forces the queue on an `await: true` profile. Without a `->await()` call the profile's `await` value applies, so existing code is unchanged. The method is a macro on Spatie's `FileAdder`, registered next to `toImageKit()`, so every `addMedia*()` entry point and `copyMedia()` have it, including files attached to a model that is saved later. The override rides on the row as a custom property that `MediaAddedListener` strips before it uploads, so `custom_properties` never carries it; because Spatie's `withCustomProperties()` replaces the whole array, call it before `->await()`. On failure `->await()` behaves like `await: true`: the row keeps its local URL, one warning is logged, `FileUploadFailed` fires and a retry is queued. `ImageKit::fake()` records the upload once and `failUploads()` applies. Larastan reads the macro; plain PHPStan needs a `@var FileAdder` hint, shown in the README ([#20](https://github.com/thecyrilcril/laravel-imagekit/issues/20)).
+- `Thecyrilcril\ImageKit\Exceptions\UnregisteredCollection`, thrown when `->await()` is used on a collection that was never registered with `->toImageKit()`. A row with no `->await()` call on an unregistered collection is still ignored, as before.
+
+### Unchanged
+
+- The `await` profile flag, the `uploadNow()` hybrid pattern (not deprecated), queue config, `PushFileToImageKit`, the `ImageKitClient` contract and the `ImageKit` facade.
+
 ## v0.6.1
 
 ### Fixed
