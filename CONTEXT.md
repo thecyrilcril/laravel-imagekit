@@ -12,6 +12,10 @@ _Avoid_: SDK, wrapper, adapter
 A named set of store-time rules applied before upload: compression, max edge, quality, format, and whether to await the upload.
 _Avoid_: upload options, conversion
 
+**Await**:
+Uploading to ImageKit before the call that stored the file returns, so the caller gets the CDN path at once. Set on a Profile, or on one call.
+_Avoid_: synchronous upload, blocking upload
+
 **Preset**:
 A named set of delivery-time transformations applied when building a URL.
 _Avoid_: transformation profile, variant
