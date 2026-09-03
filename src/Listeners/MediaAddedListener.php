@@ -8,6 +8,7 @@ use Spatie\MediaLibrary\MediaCollections\Events\MediaHasBeenAddedEvent;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
+use Thecyrilcril\ImageKit\Exceptions\UnregisteredCollection;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
 
 /**
@@ -33,7 +34,16 @@ final readonly class MediaAddedListener
 
         $this->ensureCollectionsRegistered($media);
 
+        $override = $this->pullAwaitOverride($media);
+
         if (! RegistersImageKitCollections::isRegistered($media->collection_name)) {
+            // A row with no override on a plain collection is normal. A row
+            // that asked to await is a missing toImageKit(): fail on the
+            // first run instead of silently doing nothing.
+            if ($override !== null) {
+                throw UnregisteredCollection::awaited($media->collection_name);
+            }
+
             return;
         }
 
@@ -45,13 +55,47 @@ final readonly class MediaAddedListener
         // intercepts queued collections as well as awaited ones.
         $client = app(ImageKitClient::class);
 
-        if (app(ProfileRepository::class)->profile($profile)->await) {
+        if ($override ?? app(ProfileRepository::class)->profile($profile)->await) {
             $client->uploadNow($media, $profile);
 
             return;
         }
 
         $client->upload($media, $profile);
+    }
+
+    /**
+     * Reads the per-call override set by the ->await() macro and strips it
+     * from the row in the same step, so neither the awaited nor the queued
+     * path leaves package bookkeeping in custom_properties, and a failed
+     * uploadNow() cannot hand the flag to the retry job.
+     *
+     * Only a real boolean counts as an override; anything else, including
+     * an absent key, means "use the Profile".
+     */
+    private function pullAwaitOverride(Media $media): ?bool
+    {
+        $property = RegistersImageKitCollections::AWAIT_PROPERTY;
+
+        if (! $media->hasCustomProperty($property)) {
+            return null;
+        }
+
+        /** @var mixed $value */
+        $value = $media->getCustomProperty($property);
+
+        $media->forgetCustomProperty($property);
+
+        // Arr::forget() leaves the parent `imagekit` key as an empty array.
+        // Drop it too, so a queued row looks exactly as if ->await() was
+        // never called.
+        if ($media->getCustomProperty('imagekit') === []) {
+            $media->forgetCustomProperty('imagekit');
+        }
+
+        $media->save();
+
+        return is_bool($value) ? $value : null;
     }
 
     /**
