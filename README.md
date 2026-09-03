@@ -245,7 +245,7 @@ When ImageKit is down, `->await()` fails the same way `uploadNow()` does above. 
 `->await()` works on every entry point in the table below, because it is a macro on media-library's `FileAdder`. Two things to know:
 
 - **Call `withCustomProperties()` before `->await()`.** The override travels on the row as a custom property that the package strips before it uploads; `withCustomProperties()` replaces the whole array and would drop it. Your own `custom_properties` never see the flag.
-- **`->await()` on a collection without `->toImageKit()` throws** `Thecyrilcril\ImageKit\Exceptions\UnregisteredCollection`, so a missing registration fails on the first run instead of silently queuing nothing.
+- **`->await()` on a collection without `->toImageKit()` throws** `Thecyrilcril\ImageKit\Exceptions\UnregisteredCollection`, so a missing registration fails on the first run instead of silently queuing nothing. The exception is thrown after media-library has already stored the file and saved the row, so the row stays, serving its local URL, with nothing on ImageKit. Register the collection in `registerMediaCollections()`, or delete the row in your `catch` if you would rather not keep it.
 
 The `uploadNow()` pattern above still works and is not deprecated. Use it when the decision to wait comes after the file is stored.
 
