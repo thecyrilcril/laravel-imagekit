@@ -9,8 +9,8 @@ One setting, `await`, decides when the upload happens:
 | App type | `await` | Why |
 |---|---|---|
 | Web app | `false` (queued) | The page re-renders later and picks up the CDN URL. |
-| API | `true` (synchronous) | The response is the only chance to return the final URL. |
-| Hybrid | `false`, then `->await()` where needed | Most uploads queue; a few calls wait. |
+| API | `true` (awaited) | The response is the only chance to return the final URL. |
+| Hybrid | `false`, then `->await()` or `uploadNow()` where needed | Most uploads queue; a few calls wait. |
 
 ## Installation
 
@@ -186,7 +186,7 @@ $media = $request->user()
     ->toMediaCollection('avatar');
 ```
 
-**Read the URL with `getUrl()` on every response. Do not store it.** If a synchronous upload fails, the row keeps its local URL and a retry is queued. A stored URL goes stale when that retry succeeds.
+**Read the URL with `getUrl()` on every response. Do not store it.** If an awaited upload fails, the row keeps its local URL and a retry is queued. A stored URL goes stale when that retry succeeds.
 
 ### Hybrid apps: `uploadNow()`
 
@@ -240,7 +240,7 @@ public function store(Request $request): JsonResponse
 
 `->await(false)` does the reverse: it forces the queue on an `await: true` profile. Without a `->await()` call the profile's value applies, so existing code is unchanged.
 
-`->await()` behaves exactly like an `await: true` profile when ImageKit is down: the row keeps its local URL, the error is logged once, `FileUploadFailed` fires and a background retry is queued. It never throws for a transport failure. Read readiness with `Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections::isReady($media->fresh())`.
+When ImageKit is down, `->await()` fails the same way `uploadNow()` does above. It never throws for a transport failure. Read readiness with `Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections::isReady($media->fresh())`.
 
 `->await()` works on every entry point in the table below, because it is a macro on media-library's `FileAdder`. Two things to know:
 

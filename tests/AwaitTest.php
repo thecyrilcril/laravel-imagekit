@@ -208,7 +208,7 @@ it('throws when ->await() is used on a collection that was never registered with
     expect(fn (): mixed => $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
         ->await()
         ->toMediaCollection('plain'))
-        ->toThrow(UnregisteredCollection::class, 'plain');
+        ->toThrow(fn (UnregisteredCollection $exception) => expect($exception->collection)->toBe('plain'));
 });
 
 it('still ignores an unregistered collection when ->await() is not used', function (): void {

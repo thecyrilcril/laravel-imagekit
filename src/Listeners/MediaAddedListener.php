@@ -81,7 +81,6 @@ final readonly class MediaAddedListener
             return null;
         }
 
-        /** @var mixed $value */
         $value = $media->getCustomProperty($property);
 
         $media->forgetCustomProperty($property);
