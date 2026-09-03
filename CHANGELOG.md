@@ -2,6 +2,12 @@
 
 All notable changes to `laravel-imagekit` will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- README and docblock: `UnregisteredCollection` from `->await()` is thrown after media-library has saved the row, so the row stays with its local file ([#22](https://github.com/thecyrilcril/laravel-imagekit/issues/22)).
+
 ## v0.7.0
 
 ### Added
