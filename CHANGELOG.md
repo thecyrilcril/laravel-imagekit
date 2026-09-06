@@ -4,6 +4,10 @@ All notable changes to `laravel-imagekit` will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Per-action queue names.** `imagekit.queue.names` holds an optional queue name for each job type: `upload` (`IMAGEKIT_UPLOAD_QUEUE`), `remove` (`IMAGEKIT_REMOVE_QUEUE`) and `cleanup` (`IMAGEKIT_CLEANUP_QUEUE`). Each defaults to null and falls back to `imagekit.queue.name`, so nothing changes on upgrade. Set one to move that action to its own queue, then list the default queue first in `queue:work --queue=`; the README "Split queues" section shows the worker command. An empty override falls back too, so a blank env var never dispatches to a queue called "". `connection`, `tries` and `backoff` stay shared. `Thecyrilcril\ImageKit\Support\QueueName::for()` is the one place the name is resolved ([#24](https://github.com/thecyrilcril/laravel-imagekit/issues/24)).
+
 ### Changed
 
 - README and docblock: `UnregisteredCollection` from `->await()` is thrown after media-library has saved the row, so the row stays with its local file ([#22](https://github.com/thecyrilcril/laravel-imagekit/issues/22)).

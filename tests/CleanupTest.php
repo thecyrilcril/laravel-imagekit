@@ -6,7 +6,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
-use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Events\FileRemoved;
 use Thecyrilcril\ImageKit\Jobs\RemoveFileFromImageKit;
@@ -18,19 +17,6 @@ beforeEach(function (): void {
 
     $this->model = TestModel::query()->create(['name' => 'subject']);
 });
-
-function uploadedMedia(TestModel $model, string $collection = 'avatar'): Media
-{
-    $media = $model
-        ->addMedia(UploadedFile::fake()->image('p.jpg', 20, 20))
-        ->toMediaCollection($collection);
-
-    $media->setCustomProperty('imagekit.file_id', 'remote-1');
-    $media->setCustomProperty('imagekit.file_path', '/p.jpg');
-    $media->save();
-
-    return $media;
-}
 
 it('queues a remote delete when media is deleted directly', function (): void {
     Queue::fake();
