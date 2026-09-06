@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Thecyrilcril\ImageKit\Observers;
 
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Jobs\RemoveFileFromImageKit;
 
 /**
@@ -24,11 +25,12 @@ final readonly class MediaObserver
      */
     public function deleted(Media $media): void
     {
-        $fileId = $media->getCustomProperty('imagekit.file_id');
-
-        if (! is_string($fileId) || $fileId === '') {
+        if (! RegistersImageKitCollections::isUploaded($media)) {
             return;
         }
+
+        /** @var string $fileId */
+        $fileId = $media->getCustomProperty('imagekit.file_id');
 
         RemoveFileFromImageKit::dispatch($fileId)->afterCommit();
     }

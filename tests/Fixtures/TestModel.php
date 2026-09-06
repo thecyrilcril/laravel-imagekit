@@ -23,6 +23,7 @@ final class TestModel extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection('avatar')->singleFile()->toImageKit('avatar');
+        $this->addMediaCollection('photos')->toImageKit();
         $this->addMediaCollection('plain');
     }
 }

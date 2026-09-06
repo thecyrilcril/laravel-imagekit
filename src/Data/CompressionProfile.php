@@ -14,6 +14,7 @@ final readonly class CompressionProfile
         public int $quality,
         public ?string $format,
         public bool $await = false,
+        public bool $cleanup = false,
     ) {}
 
     /**
@@ -51,6 +52,7 @@ final readonly class CompressionProfile
             quality: $quality,
             format: $format,
             await: (bool) ($config['await'] ?? false),
+            cleanup: (bool) ($config['cleanup'] ?? false),
         );
     }
 }

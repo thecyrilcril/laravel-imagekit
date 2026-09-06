@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Override;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
@@ -15,11 +16,12 @@ use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
-use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
+use Thecyrilcril\ImageKit\Jobs\CleanupSource;
 use Thecyrilcril\ImageKit\Jobs\PushFileToImageKit;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MarkUploaded;
 use Thecyrilcril\ImageKit\Support\MediaContents;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
@@ -31,9 +33,9 @@ final class ImageKitManager implements ImageKitClient
      * Queue an upload for a media row that already exists.
      */
     #[Override]
-    public function upload(Media $media, ?string $profile = null): void
+    public function upload(Media $media, ?string $profile = null, ?bool $cleanup = null): void
     {
-        PushFileToImageKit::dispatch($media->id, $profile);
+        PushFileToImageKit::dispatch($media->id, $profile, $cleanup);
     }
 
     /**
@@ -46,10 +48,10 @@ final class ImageKitManager implements ImageKitClient
      * returned rather than an exception propagating into the response.
      */
     #[Override]
-    public function uploadNow(Media $media, ?string $profile = null): ?UploadedFileResult
+    public function uploadNow(Media $media, ?string $profile = null, ?bool $cleanup = null): ?UploadedFileResult
     {
         try {
-            return $this->performUpload($media, $profile);
+            return $this->performUpload($media, $profile, $cleanup);
         } catch (Throwable $exception) {
             Log::warning('ImageKit synchronous upload failed; retrying in the background.', [
                 'media_id' => $media->id,
@@ -58,13 +60,14 @@ final class ImageKitManager implements ImageKitClient
 
             FileUploadFailed::dispatch($media, $exception);
 
-            PushFileToImageKit::dispatch($media->id, $profile);
+            // The override rides along, so the retry still cleans up.
+            PushFileToImageKit::dispatch($media->id, $profile, $cleanup);
 
             return null;
         }
     }
 
-    private function performUpload(Media $media, ?string $profile): UploadedFileResult
+    private function performUpload(Media $media, ?string $profile, ?bool $cleanup): UploadedFileResult
     {
         $compressionProfile = app(ProfileRepository::class)->profile($profile);
 
@@ -80,11 +83,7 @@ final class ImageKitManager implements ImageKitClient
             folder: FolderResolver::resolve($media->collection_name),
         ));
 
-        $media->setCustomProperty('imagekit.file_id', $result->fileId);
-        $media->setCustomProperty('imagekit.file_path', $result->path);
-        $media->save();
-
-        FileUploaded::dispatch($media, $result);
+        MarkUploaded::on($media, $result, $compressionProfile, $cleanup);
 
         return $result;
     }
@@ -123,6 +122,36 @@ final class ImageKitManager implements ImageKitClient
                     }
 
                     PushFileToImageKit::dispatch($media->id, $profile);
+                    $queued++;
+                }
+            });
+
+        return $queued;
+    }
+
+    /**
+     * Queue Cleanup for every row in a collection that already serves from
+     * ImageKit. Same query shape as backfill(). Rows with a path but no
+     * file id (adopted rows) are skipped: nothing proves ImageKit has them.
+     *
+     * @param  class-string<Model>  $modelClass
+     */
+    #[Override]
+    public function cleanup(string $modelClass, string $collection): int
+    {
+        $queued = 0;
+
+        MediaModel::query()
+            ->where('model_type', $modelClass)
+            ->where('collection_name', $collection)
+            ->whereNull('imagekit_pending_deletion_at')
+            ->chunkById(100, function ($chunk) use (&$queued): void {
+                foreach ($chunk as $media) {
+                    if (! RegistersImageKitCollections::isUploaded($media)) {
+                        continue;
+                    }
+
+                    CleanupSource::dispatch($media->id);
                     $queued++;
                 }
             });

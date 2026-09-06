@@ -28,10 +28,13 @@ return [
     // Upload-time compression: what we STORE.
     // 'await' => true uploads before the response returns, so an API caller
     // receives the final CDN URL. false queues it, which suits web requests.
+    // 'cleanup' => true deletes the Source (the original, its conversions and
+    // its responsive images on the media disk) once ImageKit holds the file.
+    // After that the file exists only on ImageKit. false keeps the Source.
     'profiles' => [
-        'default' => ['compress' => true, 'max_edge' => 2000, 'quality' => 90, 'format' => null, 'await' => false],
-        'avatar' => ['compress' => true, 'max_edge' => 2000, 'quality' => 90, 'format' => null, 'await' => false],
-        'document' => ['compress' => false, 'await' => false],
+        'default' => ['compress' => true, 'max_edge' => 2000, 'quality' => 90, 'format' => null, 'await' => false, 'cleanup' => false],
+        'avatar' => ['compress' => true, 'max_edge' => 2000, 'quality' => 90, 'format' => null, 'await' => false, 'cleanup' => false],
+        'document' => ['compress' => false, 'await' => false, 'cleanup' => false],
     ],
 
     // Delivery-time transformations: what we SERVE. Keys are the Client's

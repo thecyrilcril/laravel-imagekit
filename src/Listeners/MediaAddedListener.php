@@ -34,14 +34,18 @@ final readonly class MediaAddedListener
 
         $this->ensureCollectionsRegistered($media);
 
-        $override = $this->pullAwaitOverride($media);
+        [$await, $cleanup] = $this->pullOverrides($media);
 
         if (! RegistersImageKitCollections::isRegistered($media->collection_name)) {
             // A row with no override on a plain collection is normal. A row
-            // that asked to await is a missing toImageKit(): fail on the
-            // first run instead of silently doing nothing.
-            if ($override !== null) {
+            // that asked to await or clean up is a missing toImageKit():
+            // fail on the first run instead of silently doing nothing.
+            if ($await !== null) {
                 throw UnregisteredCollection::awaited($media->collection_name);
+            }
+
+            if ($cleanup !== null) {
+                throw UnregisteredCollection::cleanedUp($media->collection_name);
             }
 
             return;
@@ -52,49 +56,63 @@ final readonly class MediaAddedListener
         // await:true uploads before the response is built, so an API caller
         // receives the final CDN URL instead of a temporary local one.
         // Both branches go through the bound client, so ImageKit::fake()
-        // intercepts queued collections as well as awaited ones.
+        // intercepts queued collections as well as awaited ones. The cleanup
+        // decision travels as an argument, never on the row (ADR 0003).
         $client = app(ImageKitClient::class);
 
-        if ($override ?? app(ProfileRepository::class)->profile($profile)->await) {
-            $client->uploadNow($media, $profile);
+        if ($await ?? app(ProfileRepository::class)->profile($profile)->await) {
+            $client->uploadNow($media, $profile, $cleanup);
 
             return;
         }
 
-        $client->upload($media, $profile);
+        $client->upload($media, $profile, $cleanup);
     }
 
     /**
-     * Reads the per-call override set by the ->await() macro and strips it
-     * from the row in the same step, so neither the awaited nor the queued
-     * path leaves package bookkeeping in custom_properties, and a failed
-     * uploadNow() cannot hand the flag to the retry job.
+     * Reads the per-call overrides set by the ->await() and ->cleanup()
+     * macros and strips both from the row in one save, so neither the
+     * awaited nor the queued path leaves package bookkeeping in
+     * custom_properties, and a failed uploadNow() cannot hand a flag to the
+     * retry job through the row.
      *
      * Only a real boolean counts as an override; anything else, including
      * an absent key, means "use the Profile".
+     *
+     * @return array{0: bool|null, 1: bool|null} await, then cleanup
      */
-    private function pullAwaitOverride(Media $media): ?bool
+    private function pullOverrides(Media $media): array
     {
-        $property = RegistersImageKitCollections::AWAIT_PROPERTY;
+        $properties = [
+            RegistersImageKitCollections::AWAIT_PROPERTY,
+            RegistersImageKitCollections::CLEANUP_PROPERTY,
+        ];
 
-        if (! $media->hasCustomProperty($property)) {
-            return null;
+        $present = array_filter($properties, static fn (string $property): bool => $media->hasCustomProperty($property));
+
+        if ($present === []) {
+            return [null, null];
         }
 
-        $value = $media->getCustomProperty($property);
+        $values = [];
 
-        $media->forgetCustomProperty($property);
+        foreach ($properties as $property) {
+            $value = $media->getCustomProperty($property);
+            $values[] = is_bool($value) ? $value : null;
+
+            $media->forgetCustomProperty($property);
+        }
 
         // Arr::forget() leaves the parent `imagekit` key as an empty array.
-        // Drop it too, so a queued row looks exactly as if ->await() was
-        // never called.
+        // Drop it too, so a queued row looks exactly as if no macro was
+        // called.
         if ($media->getCustomProperty('imagekit') === []) {
             $media->forgetCustomProperty('imagekit');
         }
 
         $media->save();
 
-        return is_bool($value) ? $value : null;
+        return [$values[0], $values[1]];
     }
 
     /**

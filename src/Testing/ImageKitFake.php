@@ -11,8 +11,9 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
-use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MarkUploaded;
+use Thecyrilcril\ImageKit\Support\ProfileRepository;
 
 /**
  * Stands in for the real manager so tests never talk to ImageKit. It records
@@ -24,7 +25,7 @@ use Thecyrilcril\ImageKit\Support\FolderResolver;
  */
 final class ImageKitFake implements ImageKitClient
 {
-    /** @var list<array{media: Media, profile: string|null}> */
+    /** @var list<array{media: Media, profile: string}> */
     private array $uploads = [];
 
     /** @var list<string> */
@@ -50,15 +51,15 @@ final class ImageKitFake implements ImageKitClient
      * the fake keeps that true so "not ready yet" stays testable.
      */
     #[Override]
-    public function upload(Media $media, ?string $profile = null): void
+    public function upload(Media $media, ?string $profile = null, ?bool $cleanup = null): void
     {
-        $this->uploads[] = ['media' => $media, 'profile' => $profile];
+        $this->record($media, $profile);
     }
 
     #[Override]
-    public function uploadNow(Media $media, ?string $profile = null): ?UploadedFileResult
+    public function uploadNow(Media $media, ?string $profile = null, ?bool $cleanup = null): ?UploadedFileResult
     {
-        $this->uploads[] = ['media' => $media, 'profile' => $profile];
+        $this->record($media, $profile);
 
         if ($this->failUploads) {
             return null;
@@ -76,11 +77,11 @@ final class ImageKitFake implements ImageKitClient
             size: (int) $media->size,
         );
 
-        $media->setCustomProperty('imagekit.file_id', $result->fileId);
-        $media->setCustomProperty('imagekit.file_path', $result->path);
-        $media->save();
-
-        FileUploaded::dispatch($media, $result);
+        // The same success routine as the real manager, so the row is
+        // ready, FileUploaded fires and Cleanup is queued when asked for.
+        // Resolving the Profile here is what makes an unknown name throw,
+        // as it does in production.
+        MarkUploaded::on($media, $result, app(ProfileRepository::class)->profile($profile), $cleanup);
 
         return $result;
     }
@@ -118,14 +119,28 @@ final class ImageKitFake implements ImageKitClient
      *
      * @param  class-string<Model>  $modelClass
      */
+    #[Override]
     public function cleanup(string $modelClass, string $collection): int
     {
         return 0;
     }
 
     /**
+     * A null profile is recorded under the default name, so a collection
+     * registered with a plain ->toImageKit() and one registered with
+     * ->toImageKit('default') look the same to assertUploaded(). The name
+     * is resolved here, once, at record time; assertUploaded() compares
+     * plain strings.
+     */
+    private function record(Media $media, ?string $profile): void
+    {
+        $this->uploads[] = ['media' => $media, 'profile' => $profile ?? ProfileRepository::DEFAULT];
+    }
+
+    /**
      * With a profile, passes only when a recorded upload for this row used
-     * that profile name.
+     * that profile name. `profile: 'default'` matches an upload from a
+     * collection registered with a plain ->toImageKit().
      */
     public function assertUploaded(Media $media, ?string $profile = null): void
     {
@@ -140,7 +155,7 @@ final class ImageKitFake implements ImageKitClient
             return;
         }
 
-        $profiles = array_map(static fn (array $row): ?string => $row['profile'], $rows);
+        $profiles = array_map(static fn (array $row): string => $row['profile'], $rows);
 
         Assert::assertContains(
             $profile,
