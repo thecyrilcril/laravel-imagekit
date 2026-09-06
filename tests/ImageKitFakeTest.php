@@ -105,6 +105,25 @@ it('asserts the profile an upload used', function (): void {
     $fake->assertUploaded($media);
 });
 
+it('asserts the default profile for a collection registered with a plain toImageKit()', function (): void {
+    $fake = ImageKit::fake();
+
+    $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
+        ->toMediaCollection('photos');
+
+    $fake->assertUploaded($media, profile: 'default');
+});
+
+it('asserts the default profile for a queued upload on a plain toImageKit() collection', function (): void {
+    $fake = ImageKit::fake();
+    config()->set('imagekit.profiles.default.await', false);
+
+    $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
+        ->toMediaCollection('photos');
+
+    $fake->assertUploaded($media, profile: 'default');
+});
+
 it('fails assertUploaded when the profile does not match, naming the media and the profile', function (): void {
     $fake = ImageKit::fake();
 

@@ -25,7 +25,7 @@ use Thecyrilcril\ImageKit\Support\ProfileRepository;
  */
 final class ImageKitFake implements ImageKitClient
 {
-    /** @var list<array{media: Media, profile: string|null}> */
+    /** @var list<array{media: Media, profile: string}> */
     private array $uploads = [];
 
     /** @var list<string> */
@@ -53,13 +53,13 @@ final class ImageKitFake implements ImageKitClient
     #[Override]
     public function upload(Media $media, ?string $profile = null, ?bool $cleanup = null): void
     {
-        $this->uploads[] = ['media' => $media, 'profile' => $profile];
+        $this->record($media, $profile);
     }
 
     #[Override]
     public function uploadNow(Media $media, ?string $profile = null, ?bool $cleanup = null): ?UploadedFileResult
     {
-        $this->uploads[] = ['media' => $media, 'profile' => $profile];
+        $this->record($media, $profile);
 
         if ($this->failUploads) {
             return null;
@@ -124,8 +124,21 @@ final class ImageKitFake implements ImageKitClient
     }
 
     /**
+     * A null profile is recorded under the default name, so a collection
+     * registered with a plain ->toImageKit() and one registered with
+     * ->toImageKit('default') look the same to assertUploaded(). The name
+     * is resolved here, once, at record time; assertUploaded() compares
+     * plain strings.
+     */
+    private function record(Media $media, ?string $profile): void
+    {
+        $this->uploads[] = ['media' => $media, 'profile' => $profile ?? ProfileRepository::DEFAULT];
+    }
+
+    /**
      * With a profile, passes only when a recorded upload for this row used
-     * that profile name.
+     * that profile name. `profile: 'default'` matches an upload from a
+     * collection registered with a plain ->toImageKit().
      */
     public function assertUploaded(Media $media, ?string $profile = null): void
     {
@@ -140,7 +153,7 @@ final class ImageKitFake implements ImageKitClient
             return;
         }
 
-        $profiles = array_map(static fn (array $row): ?string => $row['profile'], $rows);
+        $profiles = array_map(static fn (array $row): string => $row['profile'], $rows);
 
         Assert::assertContains(
             $profile,

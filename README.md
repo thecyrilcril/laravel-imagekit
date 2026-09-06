@@ -523,7 +523,7 @@ it('uploads the avatar', function () {
 
 | Assertion | Checks |
 |---|---|
-| `assertUploaded(Media $media, ?string $profile = null)` | This row was uploaded (via `upload()` or `uploadNow()`). With `profile: 'photos'`, only an upload that used that profile counts. |
+| `assertUploaded(Media $media, ?string $profile = null)` | This row was uploaded (via `upload()` or `uploadNow()`). With `profile: 'photos'`, only an upload that used that profile counts. A collection registered with a plain `->toImageKit()` records `'default'`. |
 | `assertNotUploaded(Media $media)` | This row was not uploaded. |
 | `assertDeleted(string $fileId)` | This ImageKit file ID was deleted. |
 | `assertNothingUploaded()` | No uploads happened in the test. |
