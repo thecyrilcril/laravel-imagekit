@@ -11,6 +11,16 @@ return [
         'name' => env('IMAGEKIT_QUEUE', 'imagekit'),
         'tries' => 3,
         'backoff' => 5,
+
+        // Per-action queue names. Leave one null (or empty) and that action
+        // uses 'name' above. Set one to move that action to its own queue,
+        // for example so a bulk cleanup never delays a new upload. The
+        // connection, tries and backoff above are shared by every action.
+        'names' => [
+            'upload' => env('IMAGEKIT_UPLOAD_QUEUE'),
+            'remove' => env('IMAGEKIT_REMOVE_QUEUE'),
+            'cleanup' => env('IMAGEKIT_CLEANUP_QUEUE'),
+        ],
     ],
 
     'folder' => env('IMAGEKIT_FOLDER', 'uploads'),

@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Thecyrilcril\ImageKit\Concerns\RoutesToImageKitQueue;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
@@ -33,28 +34,13 @@ final class PushFileToImageKit implements ShouldQueue
     use Dispatchable;
     use InteractsWithQueue;
     use Queueable;
-
-    public int $tries;
-
-    public int $backoff;
+    use RoutesToImageKitQueue;
 
     public function __construct(
         public int|string $mediaId,
         public ?string $profile = null,
     ) {
-        /** @var string $queue */
-        $queue = config('imagekit.queue.name', 'imagekit');
-        /** @var string|null $connection */
-        $connection = config('imagekit.queue.connection');
-
-        $this->onQueue($queue);
-
-        if ($connection !== null && $connection !== '') {
-            $this->onConnection($connection);
-        }
-
-        $this->tries = (int) config('imagekit.queue.tries', 3);
-        $this->backoff = (int) config('imagekit.queue.backoff', 5);
+        $this->routeToImageKitQueue('upload');
     }
 
     public function handle(): void

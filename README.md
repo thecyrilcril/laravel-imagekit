@@ -126,6 +126,33 @@ The package's jobs run on the `imagekit` queue (`imagekit.queue.name`). Make sur
 php artisan queue:work --queue=default,imagekit
 ```
 
+#### Split queues
+
+Laravel gives priority between queues, not inside one. A bulk operation that queues thousands of jobs sits in front of every new upload until it drains. To keep uploads first, move an action to its own queue with `imagekit.queue.names`. Each key is optional and reads its own env var; a null or empty value falls back to `imagekit.queue.name`:
+
+```php
+'queue' => [
+    'name' => env('IMAGEKIT_QUEUE', 'imagekit'),
+    'names' => [
+        'upload' => env('IMAGEKIT_UPLOAD_QUEUE'),   // PushFileToImageKit
+        'remove' => env('IMAGEKIT_REMOVE_QUEUE'),   // RemoveFileFromImageKit
+        'cleanup' => env('IMAGEKIT_CLEANUP_QUEUE'), // Cleanup (Source removal)
+    ],
+],
+```
+
+```dotenv
+IMAGEKIT_CLEANUP_QUEUE=imagekit-cleanup
+```
+
+Then list the default queue first, so a worker drains it before the split one. A queue no worker listens to strands its jobs:
+
+```bash
+php artisan queue:work --queue=default,imagekit,imagekit-cleanup
+```
+
+`connection`, `tries` and `backoff` stay shared across every action.
+
 ### 3. Serve a preset
 
 A preset is picked by media-library's conversion name. Register a conversion with the preset's name, then ask for it:
