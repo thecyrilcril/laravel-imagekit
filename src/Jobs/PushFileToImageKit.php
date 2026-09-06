@@ -13,12 +13,12 @@ use Thecyrilcril\ImageKit\Concerns\RoutesToImageKitQueue;
 use Thecyrilcril\ImageKit\Contracts\CompressesImages;
 use Thecyrilcril\ImageKit\Contracts\UploadsFiles;
 use Thecyrilcril\ImageKit\Data\UploadOptions;
-use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Events\FileUploadFailed;
 use Thecyrilcril\ImageKit\Exceptions\InvalidProfile;
 use Thecyrilcril\ImageKit\Exceptions\UnknownProfile;
 use Thecyrilcril\ImageKit\Support\FileCategoryDetector;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MarkUploaded;
 use Thecyrilcril\ImageKit\Support\MediaContents;
 use Thecyrilcril\ImageKit\Support\MediaModel;
 use Thecyrilcril\ImageKit\Support\ProfileRepository;
@@ -36,9 +36,14 @@ final class PushFileToImageKit implements ShouldQueue
     use Queueable;
     use RoutesToImageKitQueue;
 
+    /**
+     * $cleanup null means "use the Profile"; the ->cleanup() override
+     * travels here as an argument, never on the row (ADR 0003).
+     */
     public function __construct(
         public int|string $mediaId,
         public ?string $profile = null,
+        public ?bool $cleanup = null,
     ) {
         $this->routeToImageKitQueue('upload');
     }
@@ -100,10 +105,6 @@ final class PushFileToImageKit implements ShouldQueue
             tags: [$media->collection_name],
         ));
 
-        $media->setCustomProperty('imagekit.file_id', $result->fileId);
-        $media->setCustomProperty('imagekit.file_path', $result->path);
-        $media->save();
-
-        FileUploaded::dispatch($media, $result);
+        MarkUploaded::on($media, $result, cleanup: $this->cleanup ?? $profile->cleanup);
     }
 }

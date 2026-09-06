@@ -16,16 +16,18 @@ use Thecyrilcril\ImageKit\Data\UploadedFileResult;
 interface ImageKitClient
 {
     /**
-     * Queue an upload for a media row that already exists.
+     * Queue an upload for a media row that already exists. $cleanup null
+     * means "use the Profile"; true or false overrides it for this row.
      */
-    public function upload(Media $media, ?string $profile = null): void;
+    public function upload(Media $media, ?string $profile = null, ?bool $cleanup = null): void;
 
     /**
      * Upload synchronously, so the caller can return the final CDN URL in the
      * same response. Returns null on failure rather than throwing: the media
-     * row keeps its local URL and a background retry is queued.
+     * row keeps its local URL and a background retry is queued. $cleanup
+     * null means "use the Profile"; true or false overrides it for this row.
      */
-    public function uploadNow(Media $media, ?string $profile = null): ?UploadedFileResult;
+    public function uploadNow(Media $media, ?string $profile = null, ?bool $cleanup = null): ?UploadedFileResult;
 
     /**
      * Build a delivery URL for a stored path, applying a named preset when the
@@ -45,4 +47,13 @@ interface ImageKitClient
      * @param  class-string<Model>  $modelClass
      */
     public function backfill(string $modelClass, string $collection, ?string $profile = null): int;
+
+    /**
+     * Queue Cleanup for every media row in a collection that already serves
+     * from ImageKit, so files uploaded before the `cleanup` flag existed can
+     * lose their Source in bulk. Returns the number queued.
+     *
+     * @param  class-string<Model>  $modelClass
+     */
+    public function cleanup(string $modelClass, string $collection): int;
 }

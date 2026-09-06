@@ -11,8 +11,9 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
-use Thecyrilcril\ImageKit\Events\FileUploaded;
 use Thecyrilcril\ImageKit\Support\FolderResolver;
+use Thecyrilcril\ImageKit\Support\MarkUploaded;
+use Thecyrilcril\ImageKit\Support\ProfileRepository;
 
 /**
  * Stands in for the real manager so tests never talk to ImageKit. It records
@@ -50,13 +51,13 @@ final class ImageKitFake implements ImageKitClient
      * the fake keeps that true so "not ready yet" stays testable.
      */
     #[Override]
-    public function upload(Media $media, ?string $profile = null): void
+    public function upload(Media $media, ?string $profile = null, ?bool $cleanup = null): void
     {
         $this->uploads[] = ['media' => $media, 'profile' => $profile];
     }
 
     #[Override]
-    public function uploadNow(Media $media, ?string $profile = null): ?UploadedFileResult
+    public function uploadNow(Media $media, ?string $profile = null, ?bool $cleanup = null): ?UploadedFileResult
     {
         $this->uploads[] = ['media' => $media, 'profile' => $profile];
 
@@ -76,11 +77,9 @@ final class ImageKitFake implements ImageKitClient
             size: (int) $media->size,
         );
 
-        $media->setCustomProperty('imagekit.file_id', $result->fileId);
-        $media->setCustomProperty('imagekit.file_path', $result->path);
-        $media->save();
-
-        FileUploaded::dispatch($media, $result);
+        // The same success routine as the real manager, so the row is
+        // ready, FileUploaded fires and Cleanup is queued when asked for.
+        MarkUploaded::on($media, $result, cleanup: $cleanup ?? app(ProfileRepository::class)->profile($profile)->cleanup);
 
         return $result;
     }
@@ -118,6 +117,7 @@ final class ImageKitFake implements ImageKitClient
      *
      * @param  class-string<Model>  $modelClass
      */
+    #[Override]
     public function cleanup(string $modelClass, string $collection): int
     {
         return 0;

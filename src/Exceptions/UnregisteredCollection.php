@@ -24,4 +24,12 @@ final class UnregisteredCollection extends ImageKitException
             $collection,
         ));
     }
+
+    public static function cleanedUp(string $collection): self
+    {
+        return new self($collection, sprintf(
+            'Cannot clean up the Source for collection [%s]: it is not registered with ->toImageKit(). Add it in registerMediaCollections().',
+            $collection,
+        ));
+    }
 }

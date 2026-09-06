@@ -285,9 +285,58 @@ $adder = $user->addMedia($file);
 
 `await` is explicit on purpose. Queued jobs and console commands have no HTTP request to inspect, so auto-detection would fail exactly where it matters.
 
+### Cleanup
+
+Once a file is on ImageKit, its **Source** (the original, its conversions and its responsive images on the media disk) is dead weight: ImageKit serves the file and every conversion. **Cleanup** deletes the Source once the row carries `imagekit.file_id`, and never before. It is off by default.
+
+> **Warning.** After Cleanup the file exists only on ImageKit. Deleting it there, or losing the ImageKit account, loses the file. Turn this on only when ImageKit is meant to be the single source of truth.
+
+Turn it on for every upload through a profile, or for one call on the chain:
+
+```php
+// config/imagekit.php
+'profiles' => [
+    'avatar' => ['compress' => true, 'max_edge' => 2000, 'quality' => 90, 'format' => null, 'await' => false, 'cleanup' => true],
+],
+```
+
+```php
+$user->addMedia($request->file('photo'))
+    ->cleanup() // this one upload drops its Source
+    ->toMediaCollection('avatar');
+
+$user->addMedia($request->file('photo'))
+    ->cleanup(false) // keep the Source on a cleanup:true profile
+    ->toMediaCollection('avatar');
+```
+
+`->cleanup()` is a macro next to `->await()`. `->await()->cleanup()` and `->cleanup()->await()` behave the same. It works on the awaited path, the queued path and a manual `uploadNow()` alike, and it carries the same two caveats as `->await()`: call `withCustomProperties()` before it, and on a collection without `->toImageKit()` it throws `UnregisteredCollection`. The override never stays in `custom_properties`. Plain PHPStan needs the same `@var FileAdder` hint shown above.
+
+How it runs:
+
+- Cleanup is a queued job, `Thecyrilcril\ImageKit\Jobs\CleanupSource`, dispatched after the row is saved with `imagekit.file_id` and after the transaction commits. It lands on `imagekit.queue.names.cleanup`, or the default queue when that is unset (see [Split queues](#split-queues)).
+- The job re-checks the row before it deletes anything. A row that is gone, or that has no `file_id`, is left alone. Files that are already gone are not an error, so a retry is harmless.
+- It removes the original, every conversion and every responsive image, and the empty directories, through media-library's own file remover, so a custom `file_remover_class` and a separate conversions disk are honoured. If the original or a registered conversion is still on disk afterwards the job logs one warning and throws `Thecyrilcril\ImageKit\Exceptions\CleanupFailed`, so the queue retries it with the package's `tries` and `backoff`.
+- `getUrl()` keeps returning the ImageKit URL. Deleting the row later still queues the remote delete.
+
+Two things it cannot fix:
+
+- **Do not combine `withResponsiveImages()` with Cleanup.** Responsive images are served from the media disk, not from ImageKit, so every `srcset` entry breaks once the Source is gone. The job logs one warning when it cleans a row that carries responsive-image data.
+- **`getPath()` points at nothing after Cleanup.** Code that reads the Source from disk (an EXIF reader, a virus scanner) must run before Cleanup, or on a profile with `cleanup` off.
+
+Conversions and responsive images are generated on media-library's own queue after the upload, so Cleanup can run first. A conversion that finds no Source is skipped silently and ImageKit serves it anyway. A responsive-image job that finds no Source fails into `failed_jobs`. There is no delay knob. Why a queued job and not an inline delete: [ADR-0003](docs/adr/0003-cleanup-is-a-deferred-job-that-removes-the-whole-source.md).
+
+Files uploaded before the flag existed can be cleaned in bulk. This queues one job per row that carries `imagekit.file_id`, skips rows marked for deletion, and returns the number queued:
+
+```php
+use Thecyrilcril\ImageKit\Facades\ImageKit;
+
+$queued = ImageKit::cleanup(User::class, 'avatar');
+```
+
 ### Every upload method works
 
-The push to ImageKit is triggered by media creation. All media-library entry points behave the same, and all of them accept `->await()`:
+The push to ImageKit is triggered by media creation. All media-library entry points behave the same, and all of them accept `->await()` and `->cleanup()`:
 
 | Method | Source |
 |---|---|
@@ -336,6 +385,7 @@ Profile keys:
 | `quality` | Integer 1–100 for the encoder. Ignored for lossless formats such as PNG. |
 | `format` | Output format (`'jpg'`, `'png'`, `'webp'`, …), or `null` to keep the source format. Read [Footguns](#footguns) first. |
 | `await` | `false` queues the upload. `true` uploads before the storing call returns. `->await()` / `->await(false)` on the chain overrides it for one call. |
+| `cleanup` | `false` keeps the Source on the media disk. `true` deletes it once ImageKit holds the file, so the file exists only on ImageKit. `->cleanup()` / `->cleanup(false)` on the chain overrides it for one call. Read [Cleanup](#cleanup) first. |
 
 A profile is validated the first time it is used. A bad value throws `Thecyrilcril\ImageKit\Exceptions\InvalidProfile` with the profile and field name. Bad values are: `quality` outside 1–100, `max_edge` below 1, a non-string `format`, or a numeric string where an integer is expected (for example `'90'` from `env()`). Nothing is clamped or coerced. An unused profile never throws.
 
@@ -489,6 +539,8 @@ $media = $user->addMedia(UploadedFile::fake()->image('a.jpg'))->await()->toMedia
 expect($media->fresh()->getCustomProperty('imagekit.file_path'))->toBe('/uploads/avatar/a.jpg');
 ```
 
+A faked awaited upload also queues the Cleanup job when the profile has `cleanup: true` or the call used `->cleanup()`, so `Queue::fake()` plus `Queue::assertPushed(CleanupSource::class)` proves the wiring. `ImageKit::fake()->cleanup()` returns 0, like `backfill()`.
+
 A queued upload (`upload()`, or an `await: false` profile) writes nothing, so "not ready until a worker runs" stays true in tests. Row deletions are recorded too: the remove job goes through the bound client, so deleting a row that carries `imagekit.file_id` shows up in `assertDeleted()` and `assertNothingDeleted()`.
 
 To simulate an outage, make `uploadNow()` return `null`. The row is left untouched and nothing fires:
@@ -500,6 +552,8 @@ $result = ImageKit::uploadNow($media, 'avatar');
 
 expect($result)->toBeNull();
 ```
+
+If you implement `Thecyrilcril\ImageKit\Contracts\ImageKitClient` yourself, note that `upload()` and `uploadNow()` take a third `?bool $cleanup = null` parameter and the contract has a bulk `cleanup(string $modelClass, string $collection): int`.
 
 For injection, type-hint the `Thecyrilcril\ImageKit\Contracts\ImageKitClient` contract. It is bound as a singleton, and `ImageKit::fake()` swaps that binding, so injected consumers get the fake too. `ImageKitManager` is `final` and is not the bound singleton, so an injected `ImageKitManager` is not swapped by the fake.
 

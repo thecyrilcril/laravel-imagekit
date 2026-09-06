@@ -10,11 +10,12 @@ use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Testing\ImageKitFake;
 
 /**
- * @method static void upload(\Spatie\MediaLibrary\MediaCollections\Models\Media $media, ?string $profile = null)
- * @method static \Thecyrilcril\ImageKit\Data\UploadedFileResult|null uploadNow(\Spatie\MediaLibrary\MediaCollections\Models\Media $media, ?string $profile = null)
+ * @method static void upload(\Spatie\MediaLibrary\MediaCollections\Models\Media $media, ?string $profile = null, ?bool $cleanup = null)
+ * @method static \Thecyrilcril\ImageKit\Data\UploadedFileResult|null uploadNow(\Spatie\MediaLibrary\MediaCollections\Models\Media $media, ?string $profile = null, ?bool $cleanup = null)
  * @method static string url(string $path, ?string $preset = null, ?string $mimeType = null)
  * @method static bool delete(string $fileId)
  * @method static int backfill(string $modelClass, string $collection, ?string $profile = null)
+ * @method static int cleanup(string $modelClass, string $collection)
  *
  * @see ImageKitClient
  */

@@ -25,6 +25,12 @@ final class RegistersImageKitCollections
      */
     public const string AWAIT_PROPERTY = 'imagekit.await';
 
+    /**
+     * Custom property that carries a per-call cleanup override from the
+     * FileAdder chain to MediaAddedListener, which strips it again.
+     */
+    public const string CLEANUP_PROPERTY = 'imagekit.cleanup';
+
     public static function register(): void
     {
         MediaCollection::macro('toImageKit', function (?string $profile = null): MediaCollection {
@@ -52,6 +58,18 @@ final class RegistersImageKitCollections
 
             return $this->withCustomProperties($customProperties);
         });
+
+        // Same mechanism as ->await(), same withCustomProperties() caveat.
+        // Merging under the one `imagekit` key is what makes ->await() and
+        // ->cleanup() order-independent on the chain.
+        FileAdder::macro('cleanup', function (bool $cleanup = true): FileAdder {
+            /** @var FileAdder $this */
+            $customProperties = $this->customProperties;
+
+            Arr::set($customProperties, RegistersImageKitCollections::CLEANUP_PROPERTY, $cleanup);
+
+            return $this->withCustomProperties($customProperties);
+        });
     }
 
     /**
@@ -68,6 +86,18 @@ final class RegistersImageKitCollections
         $path = $media->getCustomProperty('imagekit.file_path');
 
         return is_string($path) && $path !== '';
+    }
+
+    /**
+     * Whether ImageKit holds this row's file: the row carries a non-empty
+     * `imagekit.file_id`. The one definition the observer, the Cleanup job
+     * and the bulk Cleanup share.
+     */
+    public static function isUploaded(Media $media): bool
+    {
+        $fileId = $media->getCustomProperty('imagekit.file_id');
+
+        return is_string($fileId) && $fileId !== '';
     }
 
     public static function remember(string $collection, ?string $profile): void
