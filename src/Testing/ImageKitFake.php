@@ -11,7 +11,17 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Thecyrilcril\ImageKit\Contracts\GeneratesFileUrls;
 use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Data\UploadedFileResult;
+use Thecyrilcril\ImageKit\Events\FileUploaded;
+use Thecyrilcril\ImageKit\Support\FolderResolver;
 
+/**
+ * Stands in for the real manager so tests never talk to ImageKit. It records
+ * every call, and on a successful awaited upload it does what the manager
+ * does: writes `imagekit.file_id` and `imagekit.file_path` on the row and
+ * fires FileUploaded. So a row a test stored through media-library looks
+ * ready, exactly as in production. What it recorded stays private: assert
+ * through the assert*() methods.
+ */
 final class ImageKitFake implements ImageKitClient
 {
     /** @var list<array{media: Media, profile: string|null}> */
@@ -35,6 +45,10 @@ final class ImageKitFake implements ImageKitClient
         return $this;
     }
 
+    /**
+     * Records only. A queued upload writes nothing until a worker runs, and
+     * the fake keeps that true so "not ready yet" stays testable.
+     */
     #[Override]
     public function upload(Media $media, ?string $profile = null): void
     {
@@ -50,13 +64,25 @@ final class ImageKitFake implements ImageKitClient
             return null;
         }
 
-        return new UploadedFileResult(
+        // Root plus collection plus file name, as the real upload builds it.
+        // trim() keeps the path honest when the app has no root folder.
+        $path = '/'.ltrim(FolderResolver::resolve($media->collection_name).'/'.$media->file_name, '/');
+
+        $result = new UploadedFileResult(
             fileId: 'fake-'.$media->id,
-            path: '/fake/'.$media->file_name,
-            url: 'https://imagekit.test/fake/'.$media->file_name,
+            path: $path,
+            url: 'https://imagekit.test'.$path,
             name: $media->file_name,
             size: (int) $media->size,
         );
+
+        $media->setCustomProperty('imagekit.file_id', $result->fileId);
+        $media->setCustomProperty('imagekit.file_path', $result->path);
+        $media->save();
+
+        FileUploaded::dispatch($media, $result);
+
+        return $result;
     }
 
     #[Override]
@@ -86,14 +112,40 @@ final class ImageKitFake implements ImageKitClient
         return 0;
     }
 
-    public function assertUploaded(Media $media): void
+    /**
+     * Bulk Cleanup over a collection. Queues nothing and returns 0, mirroring
+     * backfill().
+     *
+     * @param  class-string<Model>  $modelClass
+     */
+    public function cleanup(string $modelClass, string $collection): int
     {
-        $ids = array_map(static fn (array $row): string => (string) $row['media']->id, $this->uploads);
+        return 0;
+    }
+
+    /**
+     * With a profile, passes only when a recorded upload for this row used
+     * that profile name.
+     */
+    public function assertUploaded(Media $media, ?string $profile = null): void
+    {
+        $rows = array_filter($this->uploads, static fn (array $row): bool => (string) $row['media']->id === (string) $media->id);
+
+        Assert::assertNotEmpty(
+            $rows,
+            "Expected media [{$media->id}] to have been uploaded to ImageKit.",
+        );
+
+        if ($profile === null) {
+            return;
+        }
+
+        $profiles = array_map(static fn (array $row): ?string => $row['profile'], $rows);
 
         Assert::assertContains(
-            (string) $media->id,
-            $ids,
-            "Expected media [{$media->id}] to have been uploaded to ImageKit.",
+            $profile,
+            $profiles,
+            "Expected media [{$media->id}] to have been uploaded to ImageKit with profile [{$profile}].",
         );
     }
 
@@ -120,5 +172,14 @@ final class ImageKitFake implements ImageKitClient
     public function assertNothingUploaded(): void
     {
         Assert::assertSame([], $this->uploads, 'Expected no ImageKit uploads.');
+    }
+
+    public function assertNothingDeleted(): void
+    {
+        Assert::assertSame(
+            [],
+            $this->deletions,
+            'Expected no ImageKit deletions, but these file ids were deleted: ['.implode(', ', $this->deletions).'].',
+        );
     }
 }

@@ -473,12 +473,25 @@ it('uploads the avatar', function () {
 
 | Assertion | Checks |
 |---|---|
-| `assertUploaded(Media $media)` | This row was uploaded (via `upload()` or `uploadNow()`). |
+| `assertUploaded(Media $media, ?string $profile = null)` | This row was uploaded (via `upload()` or `uploadNow()`). With `profile: 'photos'`, only an upload that used that profile counts. |
 | `assertNotUploaded(Media $media)` | This row was not uploaded. |
 | `assertDeleted(string $fileId)` | This ImageKit file ID was deleted. |
 | `assertNothingUploaded()` | No uploads happened in the test. |
+| `assertNothingDeleted()` | No deletions happened in the test. Fails with the list of ids that were deleted. |
 
-To simulate an outage, make `uploadNow()` return `null`:
+A faked awaited upload (an `await: true` profile, `->await()`, or `uploadNow()`) does what the real manager does on success: it writes `imagekit.file_id` (`fake-{id}`) and `imagekit.file_path` (`/` + the resolved folder + `/` + the file name) on the row, saves it, and fires `FileUploaded`. So the row is ready, `getUrl()` returns the ImageKit URL, and your own listeners run:
+
+```php
+ImageKit::fake();
+
+$media = $user->addMedia(UploadedFile::fake()->image('a.jpg'))->await()->toMediaCollection('avatar');
+
+expect($media->fresh()->getCustomProperty('imagekit.file_path'))->toBe('/uploads/avatar/a.jpg');
+```
+
+A queued upload (`upload()`, or an `await: false` profile) writes nothing, so "not ready until a worker runs" stays true in tests. Row deletions are recorded too: the remove job goes through the bound client, so deleting a row that carries `imagekit.file_id` shows up in `assertDeleted()` and `assertNothingDeleted()`.
+
+To simulate an outage, make `uploadNow()` return `null`. The row is left untouched and nothing fires:
 
 ```php
 $fake = ImageKit::fake()->failUploads();
