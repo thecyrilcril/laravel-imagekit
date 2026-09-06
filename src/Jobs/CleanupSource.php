@@ -50,14 +50,6 @@ final class CleanupSource implements ShouldQueue
             return;
         }
 
-        if ($media->responsive_images !== []) {
-            // Responsive images are served from the media disk, not from
-            // ImageKit, so every srcset entry breaks once the Source is gone.
-            Log::warning('ImageKit Cleanup removed the Source of a media row that carries responsive images; its srcset entries now point at nothing.', [
-                'media_id' => $media->id,
-            ]);
-        }
-
         // Media-library's own remover, so a custom file_remover_class and a
         // separate conversions disk are honoured. It tolerates files that
         // are already gone and removes each directory once it is empty.
@@ -75,6 +67,16 @@ final class CleanupSource implements ShouldQueue
             ]);
 
             throw CleanupFailed::sourceStillOnDisk($media, $leftovers);
+        }
+
+        if ($media->responsive_images !== []) {
+            // Responsive images are served from the media disk, not from
+            // ImageKit, so every srcset entry breaks once the Source is gone.
+            // Logged after the delete succeeded, so a retry after
+            // CleanupFailed does not repeat it.
+            Log::warning('ImageKit Cleanup removed the Source of a media row that carries responsive images; its srcset entries now point at nothing.', [
+                'media_id' => $media->id,
+            ]);
         }
     }
 

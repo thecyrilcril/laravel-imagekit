@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Spatie\MediaLibrary\MediaCollections\Filesystem;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\Support\FileRemover\DefaultFileRemover;
 use Thecyrilcril\ImageKit\Exceptions\CleanupFailed;
 use Thecyrilcril\ImageKit\Jobs\CleanupSource;
 use Thecyrilcril\ImageKit\Tests\Fixtures\ConvertingModel;
@@ -114,6 +115,28 @@ it('logs one warning when the row carries responsive-image data', function (): v
     Log::shouldReceive('warning')->once()->withArgs(
         fn (string $message, array $context): bool => str_contains($message, 'responsive') && $context['media_id'] === $media->id,
     );
+
+    (new CleanupSource($media->id))->handle();
+});
+
+it('logs the responsive-image warning once across a failed run and its successful retry', function (): void {
+    config()->set('media-library.file_remover_class', NoopFileRemover::class);
+
+    ['media' => $media] = sourceOnDisk($this->model);
+    $media->responsive_images = ['media_library_original' => ['urls' => ['p___media_library_original_20_20.jpg'], 'base64svg' => '']];
+    $media->save();
+
+    Log::shouldReceive('warning')->once()->withArgs(
+        fn (string $message): bool => str_contains($message, 'retry'),
+    );
+    Log::shouldReceive('warning')->once()->withArgs(
+        fn (string $message): bool => str_contains($message, 'responsive'),
+    );
+
+    expect(fn () => (new CleanupSource($media->id))->handle())
+        ->toThrow(CleanupFailed::class);
+
+    config()->set('media-library.file_remover_class', DefaultFileRemover::class);
 
     (new CleanupSource($media->id))->handle();
 });

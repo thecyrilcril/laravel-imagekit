@@ -321,7 +321,7 @@ How it runs:
 
 Two things it cannot fix:
 
-- **Do not combine `withResponsiveImages()` with Cleanup.** Responsive images are served from the media disk, not from ImageKit, so every `srcset` entry breaks once the Source is gone. The job logs one warning when it cleans a row that carries responsive-image data.
+- **Do not combine `withResponsiveImages()` with Cleanup.** Responsive images are served from the media disk, not from ImageKit, so every `srcset` entry breaks once the Source is gone. The job logs one warning, after the delete succeeds, when it cleans a row that carries responsive-image data; a retry after `CleanupFailed` does not repeat it.
 - **`getPath()` points at nothing after Cleanup.** Code that reads the Source from disk (an EXIF reader, a virus scanner) must run before Cleanup, or on a profile with `cleanup` off.
 
 Conversions and responsive images are generated on media-library's own queue after the upload, so Cleanup can run first. A conversion that finds no Source is skipped silently and ImageKit serves it anyway. A responsive-image job that finds no Source fails into `failed_jobs`. There is no delay knob. Why a queued job and not an inline delete: [ADR-0003](docs/adr/0003-cleanup-is-a-deferred-job-that-removes-the-whole-source.md).
