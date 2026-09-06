@@ -79,8 +79,9 @@ final class CleanupSource implements ShouldQueue
     }
 
     /**
-     * The original and every registered conversion that is still on its
-     * disk after the remover ran, as "disk:path" strings.
+     * The original, every registered conversion and every responsive image
+     * the row records that is still on its disk after the remover ran, as
+     * "disk:path" strings.
      *
      * @return list<string>
      */
@@ -92,6 +93,16 @@ final class CleanupSource implements ShouldQueue
 
         foreach ($media->getMediaConversionNames() as $conversion) {
             $expected[] = [$conversionsDisk, $media->getPathRelativeToRoot($conversion)];
+        }
+
+        // Responsive images live on the media disk under their own
+        // directory; the row lists their file names per conversion.
+        $responsiveImagesDirectory = app(Filesystem::class)->getResponsiveImagesDirectory($media);
+
+        foreach ($media->responsive_images as $generated) {
+            foreach ($generated['urls'] ?? [] as $fileName) {
+                $expected[] = [$media->disk, $responsiveImagesDirectory.$fileName];
+            }
         }
 
         $leftovers = [];

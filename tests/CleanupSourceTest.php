@@ -12,6 +12,7 @@ use Thecyrilcril\ImageKit\Exceptions\CleanupFailed;
 use Thecyrilcril\ImageKit\Jobs\CleanupSource;
 use Thecyrilcril\ImageKit\Tests\Fixtures\ConvertingModel;
 use Thecyrilcril\ImageKit\Tests\Fixtures\NoopFileRemover;
+use Thecyrilcril\ImageKit\Tests\Fixtures\NoResponsiveImagesFileRemover;
 use Thecyrilcril\ImageKit\Tests\Fixtures\OriginalOnlyFileRemover;
 
 // Issue #26: the Cleanup job removes the whole Source (ADR 0003).
@@ -149,6 +150,20 @@ it('throws so the queue retries when a conversion is still on disk after the rem
         ->toThrow(CleanupFailed::class, 'public:'.$paths[1]);
 
     Storage::disk('public')->assertMissing($paths[0]);
+});
+
+it('throws so the queue retries when a responsive image is still on disk after the remover ran', function (): void {
+    config()->set('media-library.file_remover_class', NoResponsiveImagesFileRemover::class);
+
+    ['media' => $media, 'paths' => $paths] = sourceOnDisk($this->model);
+    $media->responsive_images = ['media_library_original' => ['urls' => ['p___media_library_original_20_20.jpg'], 'base64svg' => '']];
+    $media->save();
+
+    expect(fn () => (new CleanupSource($media->id))->handle())
+        ->toThrow(CleanupFailed::class, 'public:'.$paths[2]);
+
+    Storage::disk('public')->assertMissing($paths[0]);
+    Storage::disk('public')->assertMissing($paths[1]);
 });
 
 it('lands on the cleanup queue name with the shared connection, tries and backoff', function (): void {

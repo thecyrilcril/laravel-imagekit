@@ -316,7 +316,7 @@ How it runs:
 
 - Cleanup is a queued job, `Thecyrilcril\ImageKit\Jobs\CleanupSource`, dispatched after the row is saved with `imagekit.file_id` and after the transaction commits. It lands on `imagekit.queue.names.cleanup`, or the default queue when that is unset (see [Split queues](#split-queues)).
 - The job re-checks the row before it deletes anything. A row that is gone, or that has no `file_id`, is left alone. Files that are already gone are not an error, so a retry is harmless.
-- It removes the original, every conversion and every responsive image, and the empty directories, through media-library's own file remover, so a custom `file_remover_class` and a separate conversions disk are honoured. If the original or a registered conversion is still on disk afterwards the job logs one warning and throws `Thecyrilcril\ImageKit\Exceptions\CleanupFailed`, so the queue retries it with the package's `tries` and `backoff`.
+- It removes the original, every conversion and every responsive image, and the empty directories, through media-library's own file remover, so a custom `file_remover_class` and a separate conversions disk are honoured. If the original, a registered conversion or a recorded responsive image is still on disk afterwards the job logs one warning and throws `Thecyrilcril\ImageKit\Exceptions\CleanupFailed`, so the queue retries it with the package's `tries` and `backoff`.
 - `getUrl()` keeps returning the ImageKit URL. Deleting the row later still queues the remote delete.
 
 Two things it cannot fix:
