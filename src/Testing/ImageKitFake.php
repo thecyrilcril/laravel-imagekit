@@ -79,7 +79,9 @@ final class ImageKitFake implements ImageKitClient
 
         // The same success routine as the real manager, so the row is
         // ready, FileUploaded fires and Cleanup is queued when asked for.
-        MarkUploaded::on($media, $result, cleanup: $cleanup ?? app(ProfileRepository::class)->profile($profile)->cleanup);
+        // Resolving the Profile here is what makes an unknown name throw,
+        // as it does in production.
+        MarkUploaded::on($media, $result, app(ProfileRepository::class)->profile($profile), $cleanup);
 
         return $result;
     }

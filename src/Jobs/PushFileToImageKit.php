@@ -105,6 +105,6 @@ final class PushFileToImageKit implements ShouldQueue
             tags: [$media->collection_name],
         ));
 
-        MarkUploaded::on($media, $result, cleanup: $this->cleanup ?? $profile->cleanup);
+        MarkUploaded::on($media, $result, $profile, $this->cleanup);
     }
 }

@@ -83,7 +83,7 @@ final class ImageKitManager implements ImageKitClient
             folder: FolderResolver::resolve($media->collection_name),
         ));
 
-        MarkUploaded::on($media, $result, cleanup: $cleanup ?? $compressionProfile->cleanup);
+        MarkUploaded::on($media, $result, $compressionProfile, $cleanup);
 
         return $result;
     }
