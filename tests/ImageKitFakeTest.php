@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\AssertionFailedError;
 use Thecyrilcril\ImageKit\Concerns\RegistersImageKitCollections;
 use Thecyrilcril\ImageKit\Events\FileUploaded;
+use Thecyrilcril\ImageKit\Exceptions\UnknownProfile;
 use Thecyrilcril\ImageKit\Facades\ImageKit;
 use Thecyrilcril\ImageKit\ImageKitUrlBuilder;
 use Thecyrilcril\ImageKit\Tests\Fixtures\TestModel;
@@ -144,6 +145,27 @@ it('asserts that nothing was deleted, and lists the ids once something is', func
 
     expect(fn () => $fake->assertNothingDeleted())
         ->toThrow(AssertionFailedError::class, 'remote-1');
+});
+
+it('throws UnknownProfile from uploadNow() for a profile that is not configured, as the real manager does', function (): void {
+    $fake = ImageKit::fake();
+
+    $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
+        ->toMediaCollection('plain');
+
+    expect(fn () => $fake->uploadNow($media, 'missing'))
+        ->toThrow(UnknownProfile::class, '[missing]');
+});
+
+it('records the delete a row deletion queues, so assertDeleted() sees the faked file id', function (): void {
+    $fake = ImageKit::fake();
+
+    $media = $this->model->addMedia(UploadedFile::fake()->image('a.jpg', 20, 20))
+        ->toMediaCollection('avatar');
+
+    $media->delete();
+
+    $fake->assertDeleted('fake-'.$media->id);
 });
 
 it('returns 0 from the bulk cleanup(), mirroring backfill()', function (): void {
