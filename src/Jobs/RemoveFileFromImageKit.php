@@ -9,7 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Thecyrilcril\ImageKit\Concerns\RoutesToImageKitQueue;
-use Thecyrilcril\ImageKit\Contracts\DeletesRemoteFiles;
+use Thecyrilcril\ImageKit\Contracts\ImageKitClient;
 use Thecyrilcril\ImageKit\Events\FileRemoved;
 
 final class RemoveFileFromImageKit implements ShouldQueue
@@ -26,7 +26,9 @@ final class RemoveFileFromImageKit implements ShouldQueue
 
     public function handle(): void
     {
-        app(DeletesRemoteFiles::class)->delete($this->fileId);
+        // Through the bound client, not the remover directly, so that
+        // ImageKit::fake() records a delete that a row deletion queued.
+        app(ImageKitClient::class)->delete($this->fileId);
 
         FileRemoved::dispatch($this->fileId);
     }

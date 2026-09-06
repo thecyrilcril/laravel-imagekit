@@ -229,7 +229,12 @@ it('records one upload against ImageKit::fake() for an awaited row', function ()
         ->toMediaCollection('avatar');
 
     $fake->assertUploaded($media);
-    expect($media->fresh()->custom_properties)->toBe([]);
+
+    // The fake persists the result like the real manager, and the ->await()
+    // override is still stripped, so only the package's own keys remain.
+    expect($media->fresh()->custom_properties)->toBe([
+        'imagekit' => ['file_id' => 'fake-'.$media->id, 'file_path' => '/uploads/avatar/a.jpg'],
+    ]);
 });
 
 it('returns a row that is not ready when ImageKit::fake()->failUploads() meets ->await()', function (): void {

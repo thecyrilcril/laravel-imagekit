@@ -8,8 +8,12 @@ All notable changes to `laravel-imagekit` will be documented in this file.
 
 - **Per-action queue names.** `imagekit.queue.names` holds an optional queue name for each job type: `upload` (`IMAGEKIT_UPLOAD_QUEUE`), `remove` (`IMAGEKIT_REMOVE_QUEUE`) and `cleanup` (`IMAGEKIT_CLEANUP_QUEUE`). Each defaults to null and falls back to `imagekit.queue.name`, so nothing changes on upgrade. Set one to move that action to its own queue, then list the default queue first in `queue:work --queue=`; the README "Split queues" section shows the worker command. An empty override falls back too, so a blank env var never dispatches to a queue called "". `connection`, `tries` and `backoff` stay shared. `Thecyrilcril\ImageKit\Support\QueueName::for()` is the one place the name is resolved ([#24](https://github.com/thecyrilcril/laravel-imagekit/issues/24)).
 
+- `ImageKit::fake()->assertUploaded($media, profile: 'photos')` passes only when a recorded upload for that row used that profile; without a profile it behaves as before. `assertNothingDeleted()` passes when nothing was deleted and lists the deleted ids when it fails. The fake also carries a bulk `cleanup(string $modelClass, string $collection): int` that returns 0, ready for the Cleanup issue to add it to the contract ([#25](https://github.com/thecyrilcril/laravel-imagekit/issues/25)).
+
 ### Changed
 
+- **`ImageKit::fake()` now persists a faked awaited upload.** On success, `uploadNow()` writes `imagekit.file_id` (`fake-{id}`) and `imagekit.file_path` (`/` + the folder the package resolves + `/` + the file name) on the row, saves it, and fires `FileUploaded` with the result it returns. The row is ready after a faked `await: true` upload, `->await()` or `uploadNow()`, and `getUrl()` returns the ImageKit URL, as in production. A test that read `custom_properties` after a faked awaited upload and expected it empty must expect the two keys now. `failUploads()` still writes nothing, and a queued `upload()` still writes nothing ([#25](https://github.com/thecyrilcril/laravel-imagekit/issues/25)).
+- `RemoveFileFromImageKit` deletes through the bound `ImageKitClient` instead of the remover directly, so a row deletion is recorded by `ImageKit::fake()`. The real manager still delegates to the same remover ([#25](https://github.com/thecyrilcril/laravel-imagekit/issues/25)).
 - README and docblock: `UnregisteredCollection` from `->await()` is thrown after media-library has saved the row, so the row stays with its local file ([#22](https://github.com/thecyrilcril/laravel-imagekit/issues/22)).
 
 ## v0.7.0
